@@ -555,16 +555,17 @@ function statusLabel(s: Status) {
 }
 
 function NewAppointmentForm({
-  rooms, defaultDay, userId, onCreated,
+  rooms, defaultDay, userId, onCreated, prefill,
 }: {
   rooms: Room[]; defaultDay: Date; userId: string | null;
   onCreated: () => void;
+  prefill?: { roomId?: string; hour?: number } | null;
 }) {
   const [patient, setPatient] = useState("");
-  const [roomId, setRoomId] = useState(rooms[0]?.id || "");
+  const [roomId, setRoomId] = useState(prefill?.roomId || rooms[0]?.id || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
+  const [startTime, setStartTime] = useState(prefill?.hour != null ? `${String(prefill.hour).padStart(2, "0")}:00` : "09:00");
+  const [endTime, setEndTime] = useState(prefill?.hour != null ? `${String(prefill.hour + 1).padStart(2, "0")}:00` : "10:00");
   const [notes, setNotes] = useState("");
   const [repeat, setRepeat] = useState(false);
   const [frequency, setFrequency] = useState<"weekly" | "biweekly">("weekly");
