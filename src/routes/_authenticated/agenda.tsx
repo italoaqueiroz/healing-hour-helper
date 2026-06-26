@@ -462,14 +462,36 @@ function GridView({
               {rooms.map((r) => {
                 const items = cell.get(r.id)?.get(h) || [];
                 const lead = leadByRoom.get(r.id);
+                const key = `${r.id}:${h}`;
+                const isOver = dragOver === key;
                 return (
-                  <td key={r.id} className="border-l border-border p-1.5 align-top min-w-[160px]">
+                  <td key={r.id}
+                    className={`border-l border-border p-1.5 align-top min-w-[160px] cursor-pointer transition-colors ${isOver ? "bg-accent/40" : "hover:bg-muted/40"}`}
+                    onClick={(e) => { if (e.target === e.currentTarget) onCreateAt(r.id, h); }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                    onDragLeave={() => setDragOver((k) => k === key ? null : k)}
+                    onDrop={(e) => {
+                      e.preventDefault(); setDragOver(null);
+                      const id = e.dataTransfer.getData("text/plain");
+                      const a = apptById.get(id);
+                      if (a && (a.room_id !== r.id || parseISO(a.starts_at).getHours() !== h)) onMove(a, r.id, h);
+                    }}
+                    title={items.length === 0 ? "Clique para agendar" : undefined}
+                  >
+                    {items.length === 0 && (
+                      <div className="flex h-full min-h-[44px] items-center justify-center text-[10px] text-muted-foreground/0 hover:text-muted-foreground">
+                        <Plus className="h-3 w-3 mr-0.5" />novo
+                      </div>
+                    )}
                     {items.map((a) => {
                       const highlighted = !!lead && a.therapist_id === lead.therapist_id;
                       const cancelled = a.attendance_status === "cancelled";
                       return (
                         <div key={a.id}
-                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${
+                          draggable={canEdit(a)}
+                          onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${canEdit(a) ? "cursor-grab active:cursor-grabbing" : ""} ${
                             cancelled
                               ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
                               : highlighted
