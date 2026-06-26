@@ -407,14 +407,19 @@ function AppointmentCard({
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onDelete,
+  rooms, appts, leadByRoom, canEdit, onMark, onDelete, onCreateAt, onMove,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number } | null>;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
   onDelete: (a: Appointment) => void;
+  onCreateAt: (roomId: string, hour: number) => void;
+  onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
 }) {
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
+
   // Build map: roomId -> hour -> appointments
   const cell = new Map<string, Map<number, Appointment[]>>();
   rooms.forEach((r) => cell.set(r.id, new Map()));
