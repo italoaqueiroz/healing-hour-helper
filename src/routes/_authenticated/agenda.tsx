@@ -469,13 +469,14 @@ function StatusBadge({ status }: { status: Status }) {
     present:     { label: "Compareceu", cls: "bg-[var(--color-success)] text-[var(--color-success-foreground)]" },
     absent:      { label: "Faltou",     cls: "bg-destructive text-destructive-foreground" },
     rescheduled: { label: "Remarcado",  cls: "bg-[var(--color-warning)] text-[var(--color-warning-foreground)]" },
+    cancelled:   { label: "Cancelado",  cls: "bg-muted text-muted-foreground line-through" },
   };
   const it = map[status];
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${it.cls}`}>{it.label}</span>;
 }
 
 function statusLabel(s: Status) {
-  return { pending: "Pendente", present: "Compareceu", absent: "Faltou", rescheduled: "Remarcado" }[s];
+  return { pending: "Pendente", present: "Compareceu", absent: "Faltou", rescheduled: "Remarcado", cancelled: "Cancelado" }[s];
 }
 
 function NewAppointmentForm({
