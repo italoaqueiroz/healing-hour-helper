@@ -15,11 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, Check, X, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star,
+  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
-type Status = "pending" | "present" | "absent" | "rescheduled";
+type Status = "pending" | "present" | "absent" | "rescheduled" | "cancelled";
 type Appointment = {
   id: string;
   therapist_id: string;
@@ -155,6 +155,7 @@ function AgendaPage() {
     rooms.forEach((r) => {
       const counts = new Map<string, { name: string; count: number }>();
       (apptsByRoom.get(r.id) || []).forEach((a) => {
+        if (a.attendance_status === "cancelled") return;
         const name = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
         const cur = counts.get(a.therapist_id) || { name, count: 0 };
         counts.set(a.therapist_id, { name, count: cur.count + 1 });
@@ -320,14 +321,21 @@ function AppointmentCard({
   onDeleteSeries: (a: Appointment) => void;
 }) {
   const therapist = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
+  const cancelled = a.attendance_status === "cancelled";
   return (
-    <div className={`rounded-lg border p-3 ${highlighted ? "border-primary/40 bg-accent/30" : "border-border bg-background"}`}>
+    <div className={`rounded-lg p-3 transition-opacity ${
+      cancelled
+        ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
+        : highlighted
+          ? "border border-primary/40 bg-accent/30"
+          : "border border-border bg-background"
+    }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium truncate">{a.patient_name}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+          <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
-            <span className={highlighted ? "text-primary font-medium" : ""}>{therapist}</span>
+            <span className={highlighted && !cancelled ? "text-primary font-medium" : ""}>{therapist}</span>
             {a.recurrence_group_id && <span className="ml-1 inline-flex items-center gap-0.5"><RotateCw className="h-3 w-3" />série</span>}
           </div>
           {a.notes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.notes}</div>}
@@ -347,6 +355,11 @@ function AppointmentCard({
         <Button size="sm" variant={a.attendance_status === "rescheduled" ? "secondary" : "outline"}
           disabled={!canEdit} onClick={() => onMark(a, "rescheduled")}>
           <RotateCw className="h-3.5 w-3.5 mr-1" />Remarcar
+        </Button>
+        <Button size="sm" variant={cancelled ? "secondary" : "outline"}
+          disabled={!canEdit} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
+          title={cancelled ? "Reativar" : "Cancelar (mantém visível, libera o horário)"}>
+          <Ban className="h-3.5 w-3.5 mr-1" />{cancelled ? "Reativar" : "Cancelar"}
         </Button>
         {canEdit && (
           <div className="ml-auto flex gap-1">
@@ -422,16 +435,23 @@ function GridView({
                   <td key={r.id} className="border-l border-border p-1.5 align-top min-w-[160px]">
                     {items.map((a) => {
                       const highlighted = !!lead && a.therapist_id === lead.therapist_id;
+                      const cancelled = a.attendance_status === "cancelled";
                       return (
                         <div key={a.id}
-                          className={`mb-1 rounded-md border px-2 py-1.5 text-xs ${highlighted ? "border-primary/40 bg-accent/40" : "border-border bg-background"}`}>
+                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${
+                            cancelled
+                              ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
+                              : highlighted
+                                ? "border border-primary/40 bg-accent/40"
+                                : "border border-border bg-background"
+                          }`}>
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0">
-                              <div className="font-medium truncate">{a.patient_name}</div>
-                              <div className="text-[10px] text-muted-foreground">
+                              <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+                              <div className={`text-[10px] text-muted-foreground ${cancelled ? "line-through" : ""}`}>
                                 {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")}
                               </div>
-                              <div className={`text-[10px] truncate ${highlighted ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                              <div className={`text-[10px] truncate ${highlighted && !cancelled ? "text-primary font-medium" : "text-muted-foreground"}`}>
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
                               </div>
                             </div>
@@ -445,6 +465,8 @@ function GridView({
                                 className="rounded p-0.5 hover:bg-destructive/20"><X className="h-3 w-3 text-destructive" /></button>
                               <button title="Remarcar" onClick={() => onMark(a, "rescheduled")}
                                 className="rounded p-0.5 hover:bg-[var(--color-warning)]/20"><RotateCw className="h-3 w-3 text-[var(--color-warning)]" /></button>
+                              <button title={cancelled ? "Reativar" : "Cancelar"} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
+                                className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
                               <button title="Excluir" onClick={() => onDelete(a)}
                                 className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                             </div>
@@ -469,13 +491,14 @@ function StatusBadge({ status }: { status: Status }) {
     present:     { label: "Compareceu", cls: "bg-[var(--color-success)] text-[var(--color-success-foreground)]" },
     absent:      { label: "Faltou",     cls: "bg-destructive text-destructive-foreground" },
     rescheduled: { label: "Remarcado",  cls: "bg-[var(--color-warning)] text-[var(--color-warning-foreground)]" },
+    cancelled:   { label: "Cancelado",  cls: "bg-muted text-muted-foreground line-through" },
   };
   const it = map[status];
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${it.cls}`}>{it.label}</span>;
 }
 
 function statusLabel(s: Status) {
-  return { pending: "Pendente", present: "Compareceu", absent: "Faltou", rescheduled: "Remarcado" }[s];
+  return { pending: "Pendente", present: "Compareceu", absent: "Faltou", rescheduled: "Remarcado", cancelled: "Cancelado" }[s];
 }
 
 function NewAppointmentForm({
