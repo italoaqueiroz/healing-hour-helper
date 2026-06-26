@@ -253,7 +253,7 @@ function AgendaPage() {
                 <Rows3 className="h-4 w-4 mr-1" />Grade
               </Button>
             </div>
-            <Dialog open={openNew} onOpenChange={setOpenNew}>
+            <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="h-4 w-4 mr-1" />Novo atendimento</Button>
               </DialogTrigger>
@@ -263,7 +263,8 @@ function AgendaPage() {
                   rooms={rooms}
                   defaultDay={day}
                   userId={userId}
-                  onCreated={() => { setOpenNew(false); loadAppts(day); }}
+                  prefill={prefill}
+                  onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); }}
                 />
               </DialogContent>
             </Dialog>
@@ -287,7 +288,7 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
         )}
       </main>
     </div>
