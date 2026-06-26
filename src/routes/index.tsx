@@ -1,67 +1,112 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarCheck, MapPin, MousePointerClick } from "lucide-react";
+import { Menu } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import logoAsset from "@/assets/logo-fio-ariana.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Clínica · Agenda de salas terapêuticas" },
-      { name: "description", content: "Agenda integrada com Google Calendar, gestão de 11 salas terapêuticas e folha de presença em um clique." },
+      { title: "Agenda · Fio de Ariana" },
+      { name: "description", content: "Agenda interna das salas terapêuticas do Fio de Ariana." },
     ],
   }),
   component: Landing,
 });
 
+const QUOTES: { text: string; author: string }[] = [
+  { text: "Conhece-te a ti mesmo.", author: "Sócrates" },
+  { text: "Só sei que nada sei.", author: "Sócrates" },
+  { text: "Não és aquilo que te acontece, és aquilo que escolhes ser.", author: "Carl Jung" },
+  { text: "O que não te mata torna-te mais forte.", author: "Friedrich Nietzsche" },
+  { text: "A vida é o que fazemos dela. As viagens são os viajantes. O que vemos não é o que vemos, senão o que somos.", author: "Fernando Pessoa" },
+  { text: "Penso, logo existo.", author: "René Descartes" },
+  { text: "Tudo o que somos é o resultado do que pensamos.", author: "Buda" },
+  { text: "A felicidade depende de nós mesmos.", author: "Aristóteles" },
+  { text: "Não há vento favorável para o marinheiro que não sabe onde ir.", author: "Séneca" },
+  { text: "O homem é a medida de todas as coisas.", author: "Protágoras" },
+  { text: "A vida só pode ser compreendida olhando-se para trás, mas só pode ser vivida olhando-se para a frente.", author: "Søren Kierkegaard" },
+  { text: "Aquele que tem um porquê para viver pode suportar quase qualquer como.", author: "Friedrich Nietzsche" },
+  { text: "A maior glória em viver não está em nunca cair, mas em levantar-se cada vez que caímos.", author: "Nelson Mandela" },
+  { text: "Onde há amor, há vida.", author: "Mahatma Gandhi" },
+];
+
+function todaysQuote() {
+  const start = new Date(new Date().getFullYear(), 0, 0);
+  const diff = Date.now() - start.getTime();
+  const day = Math.floor(diff / 86400000);
+  return QUOTES[day % QUOTES.length];
+}
+
 function Landing() {
+  const [open, setOpen] = useState(false);
+  const quote = todaysQuote();
+
+  const navItems = [
+    { label: "Agenda", to: "/agenda" },
+    { label: "Entrar", to: "/auth" },
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/60">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <CalendarCheck className="h-5 w-5" />
-            </div>
-            <span className="font-semibold tracking-tight">Clínica · Agenda</span>
-          </div>
-          <Link to="/auth"><Button>Entrar</Button></Link>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <Link to="/" className="flex min-w-0 items-center gap-3">
+            <img src={logoAsset.url} alt="Fio de Ariana" className="h-10 w-auto shrink-0" />
+            <span className="truncate font-display text-lg font-semibold tracking-tight sm:text-xl">
+              Agenda · Fio de Ariana
+            </span>
+          </Link>
+
+          <nav className="hidden items-center gap-2 sm:flex">
+            {navItems.map((i) => (
+              <Link key={i.to} to={i.to}>
+                <Button variant={i.label === "Entrar" ? "default" : "ghost"}>{i.label}</Button>
+              </Link>
+            ))}
+          </nav>
+
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild className="sm:hidden">
+              <Button variant="ghost" size="icon" aria-label="Abrir menu">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <div className="mt-8 flex flex-col gap-2">
+                {navItems.map((i) => (
+                  <Link key={i.to} to={i.to} onClick={() => setOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start text-base">
+                      {i.label}
+                    </Button>
+                  </Link>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-20">
-        <section className="max-w-3xl">
-          <p className="text-sm font-medium uppercase tracking-widest text-primary">Para sua clínica</p>
-          <h1 className="mt-3 text-5xl font-semibold leading-tight tracking-tight md:text-6xl">
-            Agenda das salas terapêuticas, sem fricção.
-          </h1>
-          <p className="mt-5 text-lg text-muted-foreground">
-            Sincronize com o Google Calendar, organize as 11 salas da clínica e marque a presença
-            do paciente com um único clique.
+      <main className="mx-auto flex max-w-4xl flex-col items-center px-6 py-24 text-center sm:py-32">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
+          Pensamento do dia
+        </p>
+        <blockquote className="mt-8">
+          <p className="font-display text-3xl font-semibold leading-snug text-foreground sm:text-5xl">
+            “{quote.text}”
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/auth"><Button size="lg">Começar agora</Button></Link>
-            <Link to="/agenda"><Button size="lg" variant="outline">Ver a agenda</Button></Link>
-          </div>
-        </section>
+          <footer className="mt-6 text-base font-semibold text-muted-foreground sm:text-lg">
+            — {quote.author}
+          </footer>
+        </blockquote>
 
-        <section className="mt-20 grid gap-6 md:grid-cols-3">
-          <Feature icon={<CalendarCheck className="h-5 w-5" />} title="Sincronia com Google Calendar"
-            text="Cada terapeuta conecta a própria conta e mantém os horários alinhados." />
-          <Feature icon={<MapPin className="h-5 w-5" />} title="11 salas, visão única"
-            text="Veja a ocupação por sala e por dia, com conflitos sinalizados." />
-          <Feature icon={<MousePointerClick className="h-5 w-5" />} title="Presença em um clique"
-            text="Compareceu, faltou ou remarcado — marcado direto no card do atendimento." />
-        </section>
+        <div className="mt-14">
+          <Link to="/agenda">
+            <Button size="lg" className="font-semibold">Abrir a agenda</Button>
+          </Link>
+        </div>
       </main>
-    </div>
-  );
-}
-
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent text-accent-foreground">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
