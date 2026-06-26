@@ -155,6 +155,7 @@ function AgendaPage() {
     rooms.forEach((r) => {
       const counts = new Map<string, { name: string; count: number }>();
       (apptsByRoom.get(r.id) || []).forEach((a) => {
+        if (a.attendance_status === "cancelled") return;
         const name = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
         const cur = counts.get(a.therapist_id) || { name, count: 0 };
         counts.set(a.therapist_id, { name, count: cur.count + 1 });
