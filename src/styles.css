@@ -119,9 +119,14 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv11", "ss01";
+    font-weight: 500;
   }
-  h1, h2, h3, .font-display {
+  p, span, div, button, a, li, td, th, label, input, textarea, select {
+    font-weight: inherit;
+  }
+  h1, h2, h3, h4, .font-display {
     font-family: var(--font-display);
+    font-weight: 600;
     letter-spacing: -0.01em;
   }
 }
