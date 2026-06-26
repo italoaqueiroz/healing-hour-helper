@@ -14,7 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          attendance_marked_at: string | null
+          attendance_status: Database["public"]["Enums"]["attendance_status"]
+          created_at: string
+          ends_at: string
+          google_event_id: string | null
+          id: string
+          notes: string | null
+          patient_name: string
+          room_id: string
+          starts_at: string
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendance_marked_at?: string | null
+          attendance_status?: Database["public"]["Enums"]["attendance_status"]
+          created_at?: string
+          ends_at: string
+          google_event_id?: string | null
+          id?: string
+          notes?: string | null
+          patient_name: string
+          room_id: string
+          starts_at: string
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendance_marked_at?: string | null
+          attendance_status?: Database["public"]["Enums"]["attendance_status"]
+          created_at?: string
+          ends_at?: string
+          google_event_id?: string | null
+          id?: string
+          notes?: string | null
+          patient_name?: string
+          room_id?: string
+          starts_at?: string
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      rooms: {
+        Row: {
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          id?: string
+          name: string
+          position: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +114,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      attendance_status: "pending" | "present" | "absent" | "rescheduled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +241,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      attendance_status: ["pending", "present", "absent", "rescheduled"],
+    },
   },
 } as const
