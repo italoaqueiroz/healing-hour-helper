@@ -321,14 +321,21 @@ function AppointmentCard({
   onDeleteSeries: (a: Appointment) => void;
 }) {
   const therapist = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
+  const cancelled = a.attendance_status === "cancelled";
   return (
-    <div className={`rounded-lg border p-3 ${highlighted ? "border-primary/40 bg-accent/30" : "border-border bg-background"}`}>
+    <div className={`rounded-lg p-3 transition-opacity ${
+      cancelled
+        ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
+        : highlighted
+          ? "border border-primary/40 bg-accent/30"
+          : "border border-border bg-background"
+    }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium truncate">{a.patient_name}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+          <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
-            <span className={highlighted ? "text-primary font-medium" : ""}>{therapist}</span>
+            <span className={highlighted && !cancelled ? "text-primary font-medium" : ""}>{therapist}</span>
             {a.recurrence_group_id && <span className="ml-1 inline-flex items-center gap-0.5"><RotateCw className="h-3 w-3" />série</span>}
           </div>
           {a.notes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.notes}</div>}
@@ -348,6 +355,11 @@ function AppointmentCard({
         <Button size="sm" variant={a.attendance_status === "rescheduled" ? "secondary" : "outline"}
           disabled={!canEdit} onClick={() => onMark(a, "rescheduled")}>
           <RotateCw className="h-3.5 w-3.5 mr-1" />Remarcar
+        </Button>
+        <Button size="sm" variant={cancelled ? "secondary" : "outline"}
+          disabled={!canEdit} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
+          title={cancelled ? "Reativar" : "Cancelar (mantém visível, libera o horário)"}>
+          <Ban className="h-3.5 w-3.5 mr-1" />{cancelled ? "Reativar" : "Cancelar"}
         </Button>
         {canEdit && (
           <div className="ml-auto flex gap-1">
