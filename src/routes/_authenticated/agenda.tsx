@@ -15,11 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, Check, X, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star,
+  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
-type Status = "pending" | "present" | "absent" | "rescheduled";
+type Status = "pending" | "present" | "absent" | "rescheduled" | "cancelled";
 type Appointment = {
   id: string;
   therapist_id: string;
