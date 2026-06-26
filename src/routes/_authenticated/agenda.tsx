@@ -435,16 +435,23 @@ function GridView({
                   <td key={r.id} className="border-l border-border p-1.5 align-top min-w-[160px]">
                     {items.map((a) => {
                       const highlighted = !!lead && a.therapist_id === lead.therapist_id;
+                      const cancelled = a.attendance_status === "cancelled";
                       return (
                         <div key={a.id}
-                          className={`mb-1 rounded-md border px-2 py-1.5 text-xs ${highlighted ? "border-primary/40 bg-accent/40" : "border-border bg-background"}`}>
+                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${
+                            cancelled
+                              ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
+                              : highlighted
+                                ? "border border-primary/40 bg-accent/40"
+                                : "border border-border bg-background"
+                          }`}>
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0">
-                              <div className="font-medium truncate">{a.patient_name}</div>
-                              <div className="text-[10px] text-muted-foreground">
+                              <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+                              <div className={`text-[10px] text-muted-foreground ${cancelled ? "line-through" : ""}`}>
                                 {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")}
                               </div>
-                              <div className={`text-[10px] truncate ${highlighted ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                              <div className={`text-[10px] truncate ${highlighted && !cancelled ? "text-primary font-medium" : "text-muted-foreground"}`}>
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
                               </div>
                             </div>
@@ -458,6 +465,8 @@ function GridView({
                                 className="rounded p-0.5 hover:bg-destructive/20"><X className="h-3 w-3 text-destructive" /></button>
                               <button title="Remarcar" onClick={() => onMark(a, "rescheduled")}
                                 className="rounded p-0.5 hover:bg-[var(--color-warning)]/20"><RotateCw className="h-3 w-3 text-[var(--color-warning)]" /></button>
+                              <button title={cancelled ? "Reativar" : "Cancelar"} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
+                                className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
                               <button title="Excluir" onClick={() => onDelete(a)}
                                 className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                             </div>
