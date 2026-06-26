@@ -53,6 +53,31 @@ function AgendaPage() {
   const [openNew, setOpenNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"colunas" | "grade">("colunas");
+  const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
+
+  function openCreateAt(roomId: string, hour: number) {
+    setPrefill({ roomId, hour });
+    setOpenNew(true);
+  }
+
+  async function moveAppt(a: Appointment, newRoomId: string, newHour: number) {
+    if (!canEdit(a)) return toast.error("Sem permissão para mover");
+    const start = parseISO(a.starts_at);
+    const end = parseISO(a.ends_at);
+    const durationMs = end.getTime() - start.getTime();
+    const newStart = new Date(start);
+    newStart.setHours(newHour, 0, 0, 0);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+    const prev = { room_id: a.room_id, starts_at: a.starts_at, ends_at: a.ends_at };
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, room_id: newRoomId, starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() } : x));
+    const { error } = await supabase.from("appointments")
+      .update({ room_id: newRoomId, starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() })
+      .eq("id", a.id);
+    if (error) {
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, ...prev } : x));
+      toast.error("Não foi possível mover");
+    } else toast.success("Atendimento movido");
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
