@@ -53,6 +53,31 @@ function AgendaPage() {
   const [openNew, setOpenNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"colunas" | "grade">("colunas");
+  const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
+
+  function openCreateAt(roomId: string, hour: number) {
+    setPrefill({ roomId, hour });
+    setOpenNew(true);
+  }
+
+  async function moveAppt(a: Appointment, newRoomId: string, newHour: number) {
+    if (!canEdit(a)) return toast.error("Sem permissão para mover");
+    const start = parseISO(a.starts_at);
+    const end = parseISO(a.ends_at);
+    const durationMs = end.getTime() - start.getTime();
+    const newStart = new Date(start);
+    newStart.setHours(newHour, 0, 0, 0);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+    const prev = { room_id: a.room_id, starts_at: a.starts_at, ends_at: a.ends_at };
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, room_id: newRoomId, starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() } : x));
+    const { error } = await supabase.from("appointments")
+      .update({ room_id: newRoomId, starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() })
+      .eq("id", a.id);
+    if (error) {
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, ...prev } : x));
+      toast.error("Não foi possível mover");
+    } else toast.success("Atendimento movido");
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -228,7 +253,7 @@ function AgendaPage() {
                 <Rows3 className="h-4 w-4 mr-1" />Grade
               </Button>
             </div>
-            <Dialog open={openNew} onOpenChange={setOpenNew}>
+            <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="h-4 w-4 mr-1" />Novo atendimento</Button>
               </DialogTrigger>
@@ -238,7 +263,8 @@ function AgendaPage() {
                   rooms={rooms}
                   defaultDay={day}
                   userId={userId}
-                  onCreated={() => { setOpenNew(false); loadAppts(day); }}
+                  prefill={prefill}
+                  onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); }}
                 />
               </DialogContent>
             </Dialog>
@@ -262,7 +288,7 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
         )}
       </main>
     </div>
@@ -381,14 +407,19 @@ function AppointmentCard({
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onDelete,
+  rooms, appts, leadByRoom, canEdit, onMark, onDelete, onCreateAt, onMove,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number } | null>;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
   onDelete: (a: Appointment) => void;
+  onCreateAt: (roomId: string, hour: number) => void;
+  onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
 }) {
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
+
   // Build map: roomId -> hour -> appointments
   const cell = new Map<string, Map<number, Appointment[]>>();
   rooms.forEach((r) => cell.set(r.id, new Map()));
@@ -431,14 +462,36 @@ function GridView({
               {rooms.map((r) => {
                 const items = cell.get(r.id)?.get(h) || [];
                 const lead = leadByRoom.get(r.id);
+                const key = `${r.id}:${h}`;
+                const isOver = dragOver === key;
                 return (
-                  <td key={r.id} className="border-l border-border p-1.5 align-top min-w-[160px]">
+                  <td key={r.id}
+                    className={`border-l border-border p-1.5 align-top min-w-[160px] cursor-pointer transition-colors ${isOver ? "bg-accent/40" : "hover:bg-muted/40"}`}
+                    onClick={(e) => { if (e.target === e.currentTarget) onCreateAt(r.id, h); }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                    onDragLeave={() => setDragOver((k) => k === key ? null : k)}
+                    onDrop={(e) => {
+                      e.preventDefault(); setDragOver(null);
+                      const id = e.dataTransfer.getData("text/plain");
+                      const a = apptById.get(id);
+                      if (a && (a.room_id !== r.id || parseISO(a.starts_at).getHours() !== h)) onMove(a, r.id, h);
+                    }}
+                    title={items.length === 0 ? "Clique para agendar" : undefined}
+                  >
+                    {items.length === 0 && (
+                      <div className="flex h-full min-h-[44px] items-center justify-center text-[10px] text-muted-foreground/0 hover:text-muted-foreground">
+                        <Plus className="h-3 w-3 mr-0.5" />novo
+                      </div>
+                    )}
                     {items.map((a) => {
                       const highlighted = !!lead && a.therapist_id === lead.therapist_id;
                       const cancelled = a.attendance_status === "cancelled";
                       return (
                         <div key={a.id}
-                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${
+                          draggable={canEdit(a)}
+                          onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`mb-1 rounded-md px-2 py-1.5 text-xs ${canEdit(a) ? "cursor-grab active:cursor-grabbing" : ""} ${
                             cancelled
                               ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
                               : highlighted
@@ -502,16 +555,17 @@ function statusLabel(s: Status) {
 }
 
 function NewAppointmentForm({
-  rooms, defaultDay, userId, onCreated,
+  rooms, defaultDay, userId, onCreated, prefill,
 }: {
   rooms: Room[]; defaultDay: Date; userId: string | null;
   onCreated: () => void;
+  prefill?: { roomId?: string; hour?: number } | null;
 }) {
   const [patient, setPatient] = useState("");
-  const [roomId, setRoomId] = useState(rooms[0]?.id || "");
+  const [roomId, setRoomId] = useState(prefill?.roomId || rooms[0]?.id || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
+  const [startTime, setStartTime] = useState(prefill?.hour != null ? `${String(prefill.hour).padStart(2, "0")}:00` : "09:00");
+  const [endTime, setEndTime] = useState(prefill?.hour != null ? `${String(prefill.hour + 1).padStart(2, "0")}:00` : "10:00");
   const [notes, setNotes] = useState("");
   const [repeat, setRepeat] = useState(false);
   const [frequency, setFrequency] = useState<"weekly" | "biweekly">("weekly");
