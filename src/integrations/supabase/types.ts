@@ -23,6 +23,7 @@ export type Database = {
           google_event_id: string | null
           id: string
           notes: string | null
+          patient_id: string | null
           patient_name: string
           recurrence_group_id: string | null
           room_id: string
@@ -38,6 +39,7 @@ export type Database = {
           google_event_id?: string | null
           id?: string
           notes?: string | null
+          patient_id?: string | null
           patient_name: string
           recurrence_group_id?: string | null
           room_id: string
@@ -53,6 +55,7 @@ export type Database = {
           google_event_id?: string | null
           id?: string
           notes?: string | null
+          patient_id?: string | null
           patient_name?: string
           recurrence_group_id?: string | null
           room_id?: string
@@ -62,6 +65,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "appointments_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
@@ -70,20 +80,53 @@ export type Database = {
           },
         ]
       }
+      patients: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          registration_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          registration_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          registration_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          color: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -135,6 +178,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_mark_present: { Args: never; Returns: undefined }
       claim_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {
@@ -152,6 +196,9 @@ export type Database = {
         | "absent"
         | "rescheduled"
         | "cancelled"
+        | "absent_therapist"
+        | "absent_unjustified"
+        | "absent_justified"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -286,6 +333,9 @@ export const Constants = {
         "absent",
         "rescheduled",
         "cancelled",
+        "absent_therapist",
+        "absent_unjustified",
+        "absent_justified",
       ],
     },
   },
