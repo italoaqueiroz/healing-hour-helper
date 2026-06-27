@@ -230,7 +230,7 @@ function AgendaPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link to="/_authenticated/relatorios" className="hidden sm:inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1">
+            <Link to="/relatorios" className="hidden sm:inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1">
               <FileText className="h-4 w-4" />Relatórios
             </Link>
             {isAdmin && (
