@@ -173,7 +173,21 @@ function AgendaPage() {
   }
 
   function canEdit(a: Appointment) {
-    return isAdmin || a.therapist_id === userId;
+    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId;
+  }
+
+  async function toggleCheckIn(a: Appointment) {
+    const checking = !a.check_in_at;
+    const newVal = checking ? new Date().toISOString() : null;
+    const newBy  = checking ? userId : null;
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: newVal, check_in_by: newBy } : x));
+    const { error } = await supabase.from("appointments")
+      .update({ check_in_at: newVal, check_in_by: newBy }).eq("id", a.id);
+    if (error) {
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
+      return toast.error("Não foi possível registrar check-in");
+    }
+    toast.success(checking ? `${eventLabel(a)} marcado como presente na recepção` : "Check-in removido");
   }
 
   async function markStatus(a: Appointment, status: Status) {
