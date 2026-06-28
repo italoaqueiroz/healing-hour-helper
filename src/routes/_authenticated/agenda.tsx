@@ -290,17 +290,40 @@ function AgendaPage() {
 
       <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))}><ChevronLeft className="h-4 w-4" /></Button>
-            <div className="min-w-[200px] sm:min-w-[240px] text-center">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                {format(day, "EEEE", { locale: ptBR })}
-              </div>
-              <div className="font-display text-xl sm:text-2xl">
-                {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -7))} title="Semana anterior"><ChevronLeft className="h-4 w-4" /><ChevronLeft className="h-4 w-4 -ml-2.5" /></Button>
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))} title="Dia anterior"><ChevronLeft className="h-4 w-4" /></Button>
             </div>
-            <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 1))}><ChevronRight className="h-4 w-4" /></Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="min-w-[210px] sm:min-w-[260px] justify-start gap-2 px-3">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-left leading-tight">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {format(day, "EEEE", { locale: ptBR })}
+                    </div>
+                    <div className="font-display text-base sm:text-lg">
+                      {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="flex items-center justify-between gap-2 border-b border-border p-2">
+                  <Button size="sm" variant="ghost" onClick={() => setDay(startOfDay(new Date()))}>Hoje</Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, -1))}>−1 mês</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, 1))}>+1 mês</Button>
+                  </div>
+                </div>
+                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 1))} title="Próximo dia"><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 7))} title="Próxima semana"><ChevronRight className="h-4 w-4" /><ChevronRight className="h-4 w-4 -ml-2.5" /></Button>
+            </div>
             {!isSameDay(day, startOfDay(new Date())) && (
               <Button variant="ghost" size="sm" onClick={() => setDay(startOfDay(new Date()))}>Hoje</Button>
             )}
