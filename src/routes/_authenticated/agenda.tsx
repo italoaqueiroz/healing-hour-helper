@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks } from "date-fns";
+import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText,
+  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
+  BellRing,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
@@ -24,17 +27,23 @@ type Patient = { id: string; full_name: string; registration_number: string | nu
 type Status =
   | "pending" | "present" | "absent" | "rescheduled" | "cancelled"
   | "absent_therapist" | "absent_unjustified" | "absent_justified";
+type EventType = "session" | "meeting" | "online" | "block" | "vacation" | "other";
 type Appointment = {
   id: string;
   therapist_id: string;
+  co_therapist_id: string | null;
   room_id: string;
   patient_id: string | null;
-  patient_name: string;
+  patient_name: string | null;
+  title: string | null;
+  event_type: EventType;
   starts_at: string;
   ends_at: string;
   notes: string | null;
   attendance_status: Status;
   attendance_marked_at: string | null;
+  check_in_at: string | null;
+  check_in_by: string | null;
   recurrence_group_id: string | null;
   profiles?: { full_name: string | null; email: string | null; color: string | null } | null;
 };
@@ -45,6 +54,20 @@ export const Route = createFileRoute("/_authenticated/agenda")({
 });
 
 const HOURS = Array.from({ length: 13 }, (_, i) => 9 + i); // 09–21
+
+const EVENT_TYPES: Array<{ value: EventType; label: string; icon: string }> = [
+  { value: "session",  label: "Sessão terapêutica", icon: "🧶" },
+  { value: "meeting",  label: "Reunião",            icon: "👥" },
+  { value: "online",   label: "Consulta online",    icon: "💻" },
+  { value: "block",    label: "Bloqueio / Indisponível", icon: "⛔" },
+  { value: "vacation", label: "Férias",             icon: "🌴" },
+  { value: "other",    label: "Outro",              icon: "✦" },
+];
+
+function eventLabel(a: Pick<Appointment, "patient_name" | "title" | "event_type">) {
+  if (a.event_type === "session") return a.patient_name || "—";
+  return a.title || EVENT_TYPES.find((e) => e.value === a.event_type)?.label || "Evento";
+}
 
 // Effective status: auto-mark as 'present' visually if pending and past +1h (cron persists)
 function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">): Status {
