@@ -533,12 +533,13 @@ function AppointmentCard({
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onDelete, onCreateAt, onMove,
+  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onCreateAt: (roomId: string, hour: number) => void;
   onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
