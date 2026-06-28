@@ -849,63 +849,101 @@ function NewAppointmentForm({
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2 relative">
-          <Label htmlFor="patient">Paciente</Label>
-          <Input id="patient" value={patientQuery} autoComplete="off"
-            onChange={(e) => { setPatientQuery(e.target.value); clearPatientSelection(); setShowSuggestions(true); }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Buscar por nome…" required maxLength={120} />
-          {showSuggestions && filteredPatients.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-auto">
-              {filteredPatients.map((p) => (
-                <button key={p.id} type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pickPatient(p)}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-accent">
-                  <div className="font-medium">{p.full_name}</div>
-                  {p.registration_number && <div className="text-xs text-muted-foreground">N.º {p.registration_number}</div>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <Label htmlFor="reg">N.º inscrição</Label>
-          <Input id="reg" value={regNumber} autoComplete="off"
-            onChange={(e) => {
-              setRegNumber(e.target.value); clearPatientSelection();
-              // Auto-fill name if number matches
-              const found = patients.find((p) => p.registration_number === e.target.value.trim());
-              if (found) pickPatient(found);
-            }}
-            placeholder="Opcional" maxLength={40} />
-        </div>
+      <div>
+        <Label>Tipo de evento</Label>
+        <Select value={eventType} onValueChange={(v) => setEventType(v as EventType)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {EVENT_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                <span className="inline-flex items-center gap-2">{t.icon} {t.label}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      {patientId && (
-        <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>
-      )}
-      {!patientId && patientQuery.trim() && (
-        <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>
+
+      {eventType === "session" ? (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 relative">
+              <Label htmlFor="patient">Paciente</Label>
+              <Input id="patient" value={patientQuery} autoComplete="off"
+                onChange={(e) => { setPatientQuery(e.target.value); clearPatientSelection(); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder="Buscar por nome…" maxLength={120} />
+              {showSuggestions && filteredPatients.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-auto">
+                  {filteredPatients.map((p) => (
+                    <button key={p.id} type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pickPatient(p)}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-accent">
+                      <div className="font-medium">{p.full_name}</div>
+                      {p.registration_number && <div className="text-xs text-muted-foreground">N.º {p.registration_number}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="reg">N.º inscrição</Label>
+              <Input id="reg" value={regNumber} autoComplete="off"
+                onChange={(e) => {
+                  setRegNumber(e.target.value); clearPatientSelection();
+                  const found = patients.find((p) => p.registration_number === e.target.value.trim());
+                  if (found) pickPatient(found);
+                }}
+                placeholder="Opcional" maxLength={40} />
+            </div>
+          </div>
+          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>}
+          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>}
+        </>
+      ) : (
+        <div>
+          <Label htmlFor="title">Título do evento</Label>
+          <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex.: Reunião semanal de equipa" maxLength={120} required />
+        </div>
       )}
 
       {isAdmin && (
-        <div>
-          <Label>Terapeuta</Label>
-          <Select value={therapistId} onValueChange={setTherapistId}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Terapeuta principal</Label>
+            <Select value={therapistId} onValueChange={setTherapistId}>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Co-terapeuta (opcional)</Label>
+            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Nenhum —</SelectItem>
+                {profiles.filter((p) => p.id !== therapistId).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
