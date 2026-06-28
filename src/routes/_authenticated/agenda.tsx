@@ -443,12 +443,13 @@ const ATTENDANCE_OPTIONS: Array<{ value: Status; sigla: string; label: string; c
 ];
 
 function AppointmentCard({
-  a, highlighted, canEdit, onMark, onDelete, onDeleteSeries,
+  a, highlighted, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries,
 }: {
   a: Appointment;
   highlighted: boolean;
   canEdit: boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
 }) {
@@ -456,6 +457,9 @@ function AppointmentCard({
   const cancelled = a.attendance_status === "cancelled";
   const eff = effectiveStatus(a);
   const color = a.profiles?.color || undefined;
+  const isSession = a.event_type === "session";
+  const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
+  const checkedIn = !!a.check_in_at;
   return (
     <div className={`rounded-lg p-3 transition-opacity border-l-4 ${
       cancelled
@@ -466,7 +470,15 @@ function AppointmentCard({
     }`} style={!cancelled ? { borderLeftColor: color } : undefined}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+          <div className={`font-medium truncate flex items-center gap-1.5 ${cancelled ? "line-through" : ""}`}>
+            {!isSession && <span title={evt?.label}>{evt?.icon}</span>}
+            {eventLabel(a)}
+            {checkedIn && (
+              <Badge className="bg-[var(--color-success)] text-[var(--color-success-foreground)] gap-1 px-1.5 py-0 text-[10px]">
+                <BellRing className="h-2.5 w-2.5" />na recepção
+              </Badge>
+            )}
+          </div>
           <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
             <span style={{ color }}>{therapist}</span>
@@ -474,11 +486,19 @@ function AppointmentCard({
           </div>
           {a.notes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.notes}</div>}
         </div>
-        <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
+        {isSession && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {ATTENDANCE_OPTIONS.map((opt) => (
+        {isSession && !cancelled && (
+          <Button size="sm" variant={checkedIn ? "default" : "outline"}
+            onClick={() => onCheckIn(a)}
+            className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
+            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na recepção"}>
+            <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
+          </Button>
+        )}
+        {isSession && ATTENDANCE_OPTIONS.map((opt) => (
           <Button key={opt.value} size="sm"
             variant={a.attendance_status === opt.value ? "default" : "outline"}
             disabled={!canEdit || cancelled}
