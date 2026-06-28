@@ -206,16 +206,16 @@ function AgendaPage() {
 
   async function deleteAppt(a: Appointment) {
     if (!canEdit(a)) return;
-    if (!confirm(`Excluir o atendimento de ${a.patient_name}?`)) return;
+    if (!confirm(`Excluir "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("id", a.id);
     if (error) return toast.error("Falha ao excluir.");
     setAppts((cur) => cur.filter((x) => x.id !== a.id));
-    toast.success("Atendimento removido");
+    toast.success("Removido");
   }
 
   async function deleteSeries(a: Appointment) {
     if (!a.recurrence_group_id || !canEdit(a)) return;
-    if (!confirm(`Excluir toda a série recorrente de ${a.patient_name}?`)) return;
+    if (!confirm(`Excluir toda a série recorrente de "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("recurrence_group_id", a.recurrence_group_id);
     if (error) return toast.error("Falha ao excluir a série.");
     setAppts((cur) => cur.filter((x) => x.recurrence_group_id !== a.recurrence_group_id));
