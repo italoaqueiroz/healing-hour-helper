@@ -789,15 +789,20 @@ function NewAppointmentForm({
     e.preventDefault();
     if (!userId || !roomId) return;
     if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
-    if (!patientQuery.trim()) return toast.error("Informe o paciente.");
+    const isSession = eventType === "session";
+    if (isSession && !patientQuery.trim()) return toast.error("Informe o paciente.");
+    if (!isSession && !title.trim()) return toast.error("Informe um título para o evento.");
     const finalTherapist = isAdmin ? (therapistId || userId) : userId;
+    const finalCoTherapist = coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
     setSaving(true);
 
-    const patient = await ensurePatient();
-    if (!patient.name) { setSaving(false); return; }
+    const patient = isSession ? await ensurePatient() : { id: null, name: "" };
+    if (isSession && !patient.name) { setSaving(false); return; }
 
     const rows: Array<{
-      therapist_id: string; room_id: string; patient_id: string | null; patient_name: string;
+      therapist_id: string; co_therapist_id: string | null; room_id: string;
+      patient_id: string | null; patient_name: string | null;
+      title: string | null; event_type: EventType;
       starts_at: string; ends_at: string; notes: string | null;
       recurrence_group_id: string | null;
     }> = [];
@@ -810,8 +815,13 @@ function NewAppointmentForm({
     while (true) {
       const d = format(cursor, "yyyy-MM-dd");
       rows.push({
-        therapist_id: finalTherapist, room_id: roomId,
-        patient_id: patient.id, patient_name: patient.name,
+        therapist_id: finalTherapist,
+        co_therapist_id: finalCoTherapist,
+        room_id: roomId,
+        patient_id: patient.id,
+        patient_name: isSession ? patient.name : null,
+        title: !isSession ? title.trim() : null,
+        event_type: eventType,
         starts_at: new Date(`${d}T${startTime}:00`).toISOString(),
         ends_at: new Date(`${d}T${endTime}:00`).toISOString(),
         notes: notes.trim() || null,
@@ -823,10 +833,17 @@ function NewAppointmentForm({
       if (rows.length > 60) break;
     }
 
-    const { error } = await supabase.from("appointments").insert(rows);
+    const { data: inserted, error } = await supabase.from("appointments").insert(rows).select("id");
     setSaving(false);
     if (error) return toast.error(error.message);
-    toast.success(rows.length > 1 ? `${rows.length} sessões agendadas` : "Atendimento agendado");
+    toast.success(rows.length > 1 ? `${rows.length} eventos agendados` : "Evento agendado");
+
+    // Fire-and-forget notification to therapist(s)
+    if (inserted?.length) {
+      supabase.functions.invoke("notify-appointment", {
+        body: { appointmentIds: inserted.map((r) => r.id) },
+      }).catch(() => { /* silencioso — não bloqueia UI */ });
+    }
     onCreated();
   }
 
