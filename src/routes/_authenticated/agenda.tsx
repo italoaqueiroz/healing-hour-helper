@@ -386,21 +386,26 @@ function AgendaPage() {
 }
 
 function RoomColumn({
-  room, appts, lead, canEdit, onMark, onDelete, onDeleteSeries,
+  room, appts, lead, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate,
 }: {
   room: Room;
   appts: Appointment[];
   lead: { therapist_id: string; name: string; count: number; color: string | null } | null;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
+  onCreate: () => void;
 }) {
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-xl">{room.name}</h3>
-        <Badge variant="secondary">{appts.length}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{appts.length}</Badge>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCreate} title="Agendar nesta sala"><Plus className="h-4 w-4" /></Button>
+        </div>
       </div>
       {lead ? (
         <div className="mt-1 flex items-center gap-1.5 text-xs">
@@ -409,16 +414,20 @@ function RoomColumn({
           <span className="text-muted-foreground">· {lead.count} sessão{lead.count > 1 ? "s" : ""} hoje</span>
         </div>
       ) : (
-        <div className="mt-1 text-xs text-muted-foreground">Sem terapeuta hoje</div>
+        <div className="mt-1 text-xs text-muted-foreground">Sala livre — clique em + para agendar</div>
       )}
       <div className="mt-3 space-y-3">
-        {appts.length === 0 && <p className="text-sm text-muted-foreground">Sem atendimentos.</p>}
+        {appts.length === 0 && (
+          <button onClick={onCreate} className="w-full rounded-md border border-dashed border-border py-6 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors">
+            <Plus className="inline h-4 w-4 mr-1" />Novo agendamento
+          </button>
+        )}
         {appts.map((a) => (
           <AppointmentCard
             key={a.id} a={a}
             highlighted={!!lead && a.therapist_id === lead.therapist_id}
             canEdit={canEdit(a)}
-            onMark={onMark} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
+            onMark={onMark} onCheckIn={onCheckIn} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
           />
         ))}
       </div>
