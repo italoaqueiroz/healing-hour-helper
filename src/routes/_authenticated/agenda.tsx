@@ -625,7 +625,11 @@ function GridView({
                           style={!cancelled ? { borderLeftColor: color } : undefined}>
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0">
-                              <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+                              <div className={`font-medium truncate flex items-center gap-1 ${cancelled ? "line-through" : ""}`}>
+                                {a.event_type !== "session" && <span title={EVENT_TYPES.find(e => e.value === a.event_type)?.label}>{EVENT_TYPES.find(e => e.value === a.event_type)?.icon}</span>}
+                                {eventLabel(a)}
+                                {a.check_in_at && <BellRing className="h-2.5 w-2.5 text-[var(--color-success)]" />}
+                              </div>
                               <div className={`text-[10px] text-muted-foreground ${cancelled ? "line-through" : ""}`}>
                                 {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")}
                               </div>
@@ -634,11 +638,18 @@ function GridView({
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
                               </div>
                             </div>
-                            <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
+                            {a.event_type === "session" && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
                           </div>
                           {canEdit(a) && !cancelled && (
                             <div className="mt-1 flex flex-wrap gap-0.5">
-                              {ATTENDANCE_OPTIONS.map((opt) => (
+                              {a.event_type === "session" && (
+                                <button title={a.check_in_at ? "Desfazer check-in" : "Check-in"}
+                                  onClick={() => onCheckIn(a)}
+                                  className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.check_in_at ? "bg-[var(--color-success)] text-[var(--color-success-foreground)]" : "hover:bg-muted"}`}>
+                                  <BellRing className="inline h-3 w-3" />
+                                </button>
+                              )}
+                              {a.event_type === "session" && ATTENDANCE_OPTIONS.map((opt) => (
                                 <button key={opt.value} title={opt.label}
                                   onClick={() => onMark(a, opt.value)}
                                   className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.attendance_status === opt.value ? opt.cls : "hover:bg-muted"}`}>
