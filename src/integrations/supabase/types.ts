@@ -18,49 +18,64 @@ export type Database = {
         Row: {
           attendance_marked_at: string | null
           attendance_status: Database["public"]["Enums"]["attendance_status"]
+          check_in_at: string | null
+          check_in_by: string | null
+          co_therapist_id: string | null
           created_at: string
           ends_at: string
+          event_type: Database["public"]["Enums"]["event_type"]
           google_event_id: string | null
           id: string
           notes: string | null
           patient_id: string | null
-          patient_name: string
+          patient_name: string | null
           recurrence_group_id: string | null
           room_id: string
           starts_at: string
           therapist_id: string
+          title: string | null
           updated_at: string
         }
         Insert: {
           attendance_marked_at?: string | null
           attendance_status?: Database["public"]["Enums"]["attendance_status"]
+          check_in_at?: string | null
+          check_in_by?: string | null
+          co_therapist_id?: string | null
           created_at?: string
           ends_at: string
+          event_type?: Database["public"]["Enums"]["event_type"]
           google_event_id?: string | null
           id?: string
           notes?: string | null
           patient_id?: string | null
-          patient_name: string
+          patient_name?: string | null
           recurrence_group_id?: string | null
           room_id: string
           starts_at: string
           therapist_id: string
+          title?: string | null
           updated_at?: string
         }
         Update: {
           attendance_marked_at?: string | null
           attendance_status?: Database["public"]["Enums"]["attendance_status"]
+          check_in_at?: string | null
+          check_in_by?: string | null
+          co_therapist_id?: string | null
           created_at?: string
           ends_at?: string
+          event_type?: Database["public"]["Enums"]["event_type"]
           google_event_id?: string | null
           id?: string
           notes?: string | null
           patient_id?: string | null
-          patient_name?: string
+          patient_name?: string | null
           recurrence_group_id?: string | null
           room_id?: string
           starts_at?: string
           therapist_id?: string
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -152,6 +167,36 @@ export type Database = {
         }
         Relationships: []
       }
+      therapist_unavailability: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          reason: string | null
+          starts_at: string
+          therapist_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          reason?: string | null
+          starts_at: string
+          therapist_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          reason?: string | null
+          starts_at?: string
+          therapist_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -199,6 +244,13 @@ export type Database = {
         | "absent_therapist"
         | "absent_unjustified"
         | "absent_justified"
+      event_type:
+        | "session"
+        | "meeting"
+        | "online"
+        | "block"
+        | "vacation"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -336,6 +388,14 @@ export const Constants = {
         "absent_therapist",
         "absent_unjustified",
         "absent_justified",
+      ],
+      event_type: [
+        "session",
+        "meeting",
+        "online",
+        "block",
+        "vacation",
+        "other",
       ],
     },
   },

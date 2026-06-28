@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks } from "date-fns";
+import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText,
+  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
+  BellRing,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
@@ -24,17 +27,23 @@ type Patient = { id: string; full_name: string; registration_number: string | nu
 type Status =
   | "pending" | "present" | "absent" | "rescheduled" | "cancelled"
   | "absent_therapist" | "absent_unjustified" | "absent_justified";
+type EventType = "session" | "meeting" | "online" | "block" | "vacation" | "other";
 type Appointment = {
   id: string;
   therapist_id: string;
+  co_therapist_id: string | null;
   room_id: string;
   patient_id: string | null;
-  patient_name: string;
+  patient_name: string | null;
+  title: string | null;
+  event_type: EventType;
   starts_at: string;
   ends_at: string;
   notes: string | null;
   attendance_status: Status;
   attendance_marked_at: string | null;
+  check_in_at: string | null;
+  check_in_by: string | null;
   recurrence_group_id: string | null;
   profiles?: { full_name: string | null; email: string | null; color: string | null } | null;
 };
@@ -45,6 +54,20 @@ export const Route = createFileRoute("/_authenticated/agenda")({
 });
 
 const HOURS = Array.from({ length: 13 }, (_, i) => 9 + i); // 09–21
+
+const EVENT_TYPES: Array<{ value: EventType; label: string; icon: string }> = [
+  { value: "session",  label: "Sessão terapêutica", icon: "🧶" },
+  { value: "meeting",  label: "Reunião",            icon: "👥" },
+  { value: "online",   label: "Consulta online",    icon: "💻" },
+  { value: "block",    label: "Bloqueio / Indisponível", icon: "⛔" },
+  { value: "vacation", label: "Férias",             icon: "🌴" },
+  { value: "other",    label: "Outro",              icon: "✦" },
+];
+
+function eventLabel(a: Pick<Appointment, "patient_name" | "title" | "event_type">) {
+  if (a.event_type === "session") return a.patient_name || "—";
+  return a.title || EVENT_TYPES.find((e) => e.value === a.event_type)?.label || "Evento";
+}
 
 // Effective status: auto-mark as 'present' visually if pending and past +1h (cron persists)
 function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">): Status {
@@ -150,7 +173,21 @@ function AgendaPage() {
   }
 
   function canEdit(a: Appointment) {
-    return isAdmin || a.therapist_id === userId;
+    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId;
+  }
+
+  async function toggleCheckIn(a: Appointment) {
+    const checking = !a.check_in_at;
+    const newVal = checking ? new Date().toISOString() : null;
+    const newBy  = checking ? userId : null;
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: newVal, check_in_by: newBy } : x));
+    const { error } = await supabase.from("appointments")
+      .update({ check_in_at: newVal, check_in_by: newBy }).eq("id", a.id);
+    if (error) {
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
+      return toast.error("Não foi possível registrar check-in");
+    }
+    toast.success(checking ? `${eventLabel(a)} marcado como presente na recepção` : "Check-in removido");
   }
 
   async function markStatus(a: Appointment, status: Status) {
@@ -169,16 +206,16 @@ function AgendaPage() {
 
   async function deleteAppt(a: Appointment) {
     if (!canEdit(a)) return;
-    if (!confirm(`Excluir o atendimento de ${a.patient_name}?`)) return;
+    if (!confirm(`Excluir "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("id", a.id);
     if (error) return toast.error("Falha ao excluir.");
     setAppts((cur) => cur.filter((x) => x.id !== a.id));
-    toast.success("Atendimento removido");
+    toast.success("Removido");
   }
 
   async function deleteSeries(a: Appointment) {
     if (!a.recurrence_group_id || !canEdit(a)) return;
-    if (!confirm(`Excluir toda a série recorrente de ${a.patient_name}?`)) return;
+    if (!confirm(`Excluir toda a série recorrente de "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("recurrence_group_id", a.recurrence_group_id);
     if (error) return toast.error("Falha ao excluir a série.");
     setAppts((cur) => cur.filter((x) => x.recurrence_group_id !== a.recurrence_group_id));
@@ -253,17 +290,40 @@ function AgendaPage() {
 
       <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))}><ChevronLeft className="h-4 w-4" /></Button>
-            <div className="min-w-[200px] sm:min-w-[240px] text-center">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                {format(day, "EEEE", { locale: ptBR })}
-              </div>
-              <div className="font-display text-xl sm:text-2xl">
-                {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -7))} title="Semana anterior"><ChevronLeft className="h-4 w-4" /><ChevronLeft className="h-4 w-4 -ml-2.5" /></Button>
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))} title="Dia anterior"><ChevronLeft className="h-4 w-4" /></Button>
             </div>
-            <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 1))}><ChevronRight className="h-4 w-4" /></Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="min-w-[210px] sm:min-w-[260px] justify-start gap-2 px-3">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-left leading-tight">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {format(day, "EEEE", { locale: ptBR })}
+                    </div>
+                    <div className="font-display text-base sm:text-lg">
+                      {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="flex items-center justify-between gap-2 border-b border-border p-2">
+                  <Button size="sm" variant="ghost" onClick={() => setDay(startOfDay(new Date()))}>Hoje</Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, -1))}>−1 mês</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, 1))}>+1 mês</Button>
+                  </div>
+                </div>
+                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 1))} title="Próximo dia"><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, 7))} title="Próxima semana"><ChevronRight className="h-4 w-4" /><ChevronRight className="h-4 w-4 -ml-2.5" /></Button>
+            </div>
             {!isSameDay(day, startOfDay(new Date())) && (
               <Button variant="ghost" size="sm" onClick={() => setDay(startOfDay(new Date()))}>Hoje</Button>
             )}
@@ -310,13 +370,15 @@ function AgendaPage() {
                 lead={leadByRoom.get(room.id) || null}
                 canEdit={canEdit}
                 onMark={markStatus}
+                onCheckIn={toggleCheckIn}
                 onDelete={deleteAppt}
                 onDeleteSeries={deleteSeries}
+                onCreate={() => openCreateAt(room.id, 9)}
               />
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
         )}
       </main>
     </div>
@@ -324,21 +386,26 @@ function AgendaPage() {
 }
 
 function RoomColumn({
-  room, appts, lead, canEdit, onMark, onDelete, onDeleteSeries,
+  room, appts, lead, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate,
 }: {
   room: Room;
   appts: Appointment[];
   lead: { therapist_id: string; name: string; count: number; color: string | null } | null;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
+  onCreate: () => void;
 }) {
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-xl">{room.name}</h3>
-        <Badge variant="secondary">{appts.length}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{appts.length}</Badge>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCreate} title="Agendar nesta sala"><Plus className="h-4 w-4" /></Button>
+        </div>
       </div>
       {lead ? (
         <div className="mt-1 flex items-center gap-1.5 text-xs">
@@ -347,16 +414,20 @@ function RoomColumn({
           <span className="text-muted-foreground">· {lead.count} sessão{lead.count > 1 ? "s" : ""} hoje</span>
         </div>
       ) : (
-        <div className="mt-1 text-xs text-muted-foreground">Sem terapeuta hoje</div>
+        <div className="mt-1 text-xs text-muted-foreground">Sala livre — clique em + para agendar</div>
       )}
       <div className="mt-3 space-y-3">
-        {appts.length === 0 && <p className="text-sm text-muted-foreground">Sem atendimentos.</p>}
+        {appts.length === 0 && (
+          <button onClick={onCreate} className="w-full rounded-md border border-dashed border-border py-6 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors">
+            <Plus className="inline h-4 w-4 mr-1" />Novo agendamento
+          </button>
+        )}
         {appts.map((a) => (
           <AppointmentCard
             key={a.id} a={a}
             highlighted={!!lead && a.therapist_id === lead.therapist_id}
             canEdit={canEdit(a)}
-            onMark={onMark} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
+            onMark={onMark} onCheckIn={onCheckIn} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
           />
         ))}
       </div>
@@ -372,12 +443,13 @@ const ATTENDANCE_OPTIONS: Array<{ value: Status; sigla: string; label: string; c
 ];
 
 function AppointmentCard({
-  a, highlighted, canEdit, onMark, onDelete, onDeleteSeries,
+  a, highlighted, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries,
 }: {
   a: Appointment;
   highlighted: boolean;
   canEdit: boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
 }) {
@@ -385,6 +457,9 @@ function AppointmentCard({
   const cancelled = a.attendance_status === "cancelled";
   const eff = effectiveStatus(a);
   const color = a.profiles?.color || undefined;
+  const isSession = a.event_type === "session";
+  const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
+  const checkedIn = !!a.check_in_at;
   return (
     <div className={`rounded-lg p-3 transition-opacity border-l-4 ${
       cancelled
@@ -395,7 +470,15 @@ function AppointmentCard({
     }`} style={!cancelled ? { borderLeftColor: color } : undefined}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+          <div className={`font-medium truncate flex items-center gap-1.5 ${cancelled ? "line-through" : ""}`}>
+            {!isSession && <span title={evt?.label}>{evt?.icon}</span>}
+            {eventLabel(a)}
+            {checkedIn && (
+              <Badge className="bg-[var(--color-success)] text-[var(--color-success-foreground)] gap-1 px-1.5 py-0 text-[10px]">
+                <BellRing className="h-2.5 w-2.5" />na recepção
+              </Badge>
+            )}
+          </div>
           <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
             <span style={{ color }}>{therapist}</span>
@@ -403,11 +486,19 @@ function AppointmentCard({
           </div>
           {a.notes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.notes}</div>}
         </div>
-        <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
+        {isSession && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {ATTENDANCE_OPTIONS.map((opt) => (
+        {isSession && !cancelled && (
+          <Button size="sm" variant={checkedIn ? "default" : "outline"}
+            onClick={() => onCheckIn(a)}
+            className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
+            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na recepção"}>
+            <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
+          </Button>
+        )}
+        {isSession && ATTENDANCE_OPTIONS.map((opt) => (
           <Button key={opt.value} size="sm"
             variant={a.attendance_status === opt.value ? "default" : "outline"}
             disabled={!canEdit || cancelled}
@@ -442,12 +533,13 @@ function AppointmentCard({
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onDelete, onCreateAt, onMove,
+  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
+  onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onCreateAt: (roomId: string, hour: number) => void;
   onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
@@ -533,7 +625,11 @@ function GridView({
                           style={!cancelled ? { borderLeftColor: color } : undefined}>
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0">
-                              <div className={`font-medium truncate ${cancelled ? "line-through" : ""}`}>{a.patient_name}</div>
+                              <div className={`font-medium truncate flex items-center gap-1 ${cancelled ? "line-through" : ""}`}>
+                                {a.event_type !== "session" && <span title={EVENT_TYPES.find(e => e.value === a.event_type)?.label}>{EVENT_TYPES.find(e => e.value === a.event_type)?.icon}</span>}
+                                {eventLabel(a)}
+                                {a.check_in_at && <BellRing className="h-2.5 w-2.5 text-[var(--color-success)]" />}
+                              </div>
                               <div className={`text-[10px] text-muted-foreground ${cancelled ? "line-through" : ""}`}>
                                 {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")}
                               </div>
@@ -542,11 +638,18 @@ function GridView({
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
                               </div>
                             </div>
-                            <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
+                            {a.event_type === "session" && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
                           </div>
                           {canEdit(a) && !cancelled && (
                             <div className="mt-1 flex flex-wrap gap-0.5">
-                              {ATTENDANCE_OPTIONS.map((opt) => (
+                              {a.event_type === "session" && (
+                                <button title={a.check_in_at ? "Desfazer check-in" : "Check-in"}
+                                  onClick={() => onCheckIn(a)}
+                                  className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.check_in_at ? "bg-[var(--color-success)] text-[var(--color-success-foreground)]" : "hover:bg-muted"}`}>
+                                  <BellRing className="inline h-3 w-3" />
+                                </button>
+                              )}
+                              {a.event_type === "session" && ATTENDANCE_OPTIONS.map((opt) => (
                                 <button key={opt.value} title={opt.label}
                                   onClick={() => onMark(a, opt.value)}
                                   className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.attendance_status === opt.value ? opt.cls : "hover:bg-muted"}`}>
@@ -616,11 +719,14 @@ function NewAppointmentForm({
   onCreated: () => void;
   prefill?: { roomId?: string; hour?: number } | null;
 }) {
+  const [eventType, setEventType] = useState<EventType>("session");
+  const [title, setTitle] = useState("");
   const [patientQuery, setPatientQuery] = useState("");
   const [patientId, setPatientId] = useState<string | null>(null);
   const [regNumber, setRegNumber] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [therapistId, setTherapistId] = useState<string>(userId || "");
+  const [coTherapistId, setCoTherapistId] = useState<string>("none");
   const [roomId, setRoomId] = useState(prefill?.roomId || rooms[0]?.id || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState(prefill?.hour != null ? `${String(prefill.hour).padStart(2, "0")}:00` : "09:00");
@@ -683,15 +789,20 @@ function NewAppointmentForm({
     e.preventDefault();
     if (!userId || !roomId) return;
     if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
-    if (!patientQuery.trim()) return toast.error("Informe o paciente.");
+    const isSession = eventType === "session";
+    if (isSession && !patientQuery.trim()) return toast.error("Informe o paciente.");
+    if (!isSession && !title.trim()) return toast.error("Informe um título para o evento.");
     const finalTherapist = isAdmin ? (therapistId || userId) : userId;
+    const finalCoTherapist = coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
     setSaving(true);
 
-    const patient = await ensurePatient();
-    if (!patient.name) { setSaving(false); return; }
+    const patient = isSession ? await ensurePatient() : { id: null, name: "" };
+    if (isSession && !patient.name) { setSaving(false); return; }
 
     const rows: Array<{
-      therapist_id: string; room_id: string; patient_id: string | null; patient_name: string;
+      therapist_id: string; co_therapist_id: string | null; room_id: string;
+      patient_id: string | null; patient_name: string | null;
+      title: string | null; event_type: EventType;
       starts_at: string; ends_at: string; notes: string | null;
       recurrence_group_id: string | null;
     }> = [];
@@ -704,8 +815,13 @@ function NewAppointmentForm({
     while (true) {
       const d = format(cursor, "yyyy-MM-dd");
       rows.push({
-        therapist_id: finalTherapist, room_id: roomId,
-        patient_id: patient.id, patient_name: patient.name,
+        therapist_id: finalTherapist,
+        co_therapist_id: finalCoTherapist,
+        room_id: roomId,
+        patient_id: patient.id,
+        patient_name: isSession ? patient.name : null,
+        title: !isSession ? title.trim() : null,
+        event_type: eventType,
         starts_at: new Date(`${d}T${startTime}:00`).toISOString(),
         ends_at: new Date(`${d}T${endTime}:00`).toISOString(),
         notes: notes.trim() || null,
@@ -717,72 +833,117 @@ function NewAppointmentForm({
       if (rows.length > 60) break;
     }
 
-    const { error } = await supabase.from("appointments").insert(rows);
+    const { data: inserted, error } = await supabase.from("appointments").insert(rows).select("id");
     setSaving(false);
     if (error) return toast.error(error.message);
-    toast.success(rows.length > 1 ? `${rows.length} sessões agendadas` : "Atendimento agendado");
+    toast.success(rows.length > 1 ? `${rows.length} eventos agendados` : "Evento agendado");
+
+    // Fire-and-forget notification to therapist(s)
+    if (inserted?.length) {
+      supabase.functions.invoke("notify-appointment", {
+        body: { appointmentIds: inserted.map((r) => r.id) },
+      }).catch(() => { /* silencioso — não bloqueia UI */ });
+    }
     onCreated();
   }
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2 relative">
-          <Label htmlFor="patient">Paciente</Label>
-          <Input id="patient" value={patientQuery} autoComplete="off"
-            onChange={(e) => { setPatientQuery(e.target.value); clearPatientSelection(); setShowSuggestions(true); }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Buscar por nome…" required maxLength={120} />
-          {showSuggestions && filteredPatients.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-auto">
-              {filteredPatients.map((p) => (
-                <button key={p.id} type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pickPatient(p)}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-accent">
-                  <div className="font-medium">{p.full_name}</div>
-                  {p.registration_number && <div className="text-xs text-muted-foreground">N.º {p.registration_number}</div>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <Label htmlFor="reg">N.º inscrição</Label>
-          <Input id="reg" value={regNumber} autoComplete="off"
-            onChange={(e) => {
-              setRegNumber(e.target.value); clearPatientSelection();
-              // Auto-fill name if number matches
-              const found = patients.find((p) => p.registration_number === e.target.value.trim());
-              if (found) pickPatient(found);
-            }}
-            placeholder="Opcional" maxLength={40} />
-        </div>
+      <div>
+        <Label>Tipo de evento</Label>
+        <Select value={eventType} onValueChange={(v) => setEventType(v as EventType)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {EVENT_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                <span className="inline-flex items-center gap-2">{t.icon} {t.label}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      {patientId && (
-        <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>
-      )}
-      {!patientId && patientQuery.trim() && (
-        <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>
+
+      {eventType === "session" ? (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 relative">
+              <Label htmlFor="patient">Paciente</Label>
+              <Input id="patient" value={patientQuery} autoComplete="off"
+                onChange={(e) => { setPatientQuery(e.target.value); clearPatientSelection(); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder="Buscar por nome…" maxLength={120} />
+              {showSuggestions && filteredPatients.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-56 overflow-auto">
+                  {filteredPatients.map((p) => (
+                    <button key={p.id} type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pickPatient(p)}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-accent">
+                      <div className="font-medium">{p.full_name}</div>
+                      {p.registration_number && <div className="text-xs text-muted-foreground">N.º {p.registration_number}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="reg">N.º inscrição</Label>
+              <Input id="reg" value={regNumber} autoComplete="off"
+                onChange={(e) => {
+                  setRegNumber(e.target.value); clearPatientSelection();
+                  const found = patients.find((p) => p.registration_number === e.target.value.trim());
+                  if (found) pickPatient(found);
+                }}
+                placeholder="Opcional" maxLength={40} />
+            </div>
+          </div>
+          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>}
+          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>}
+        </>
+      ) : (
+        <div>
+          <Label htmlFor="title">Título do evento</Label>
+          <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex.: Reunião semanal de equipa" maxLength={120} required />
+        </div>
       )}
 
       {isAdmin && (
-        <div>
-          <Label>Terapeuta</Label>
-          <Select value={therapistId} onValueChange={setTherapistId}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Terapeuta principal</Label>
+            <Select value={therapistId} onValueChange={setTherapistId}>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Co-terapeuta (opcional)</Label>
+            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Nenhum —</SelectItem>
+                {profiles.filter((p) => p.id !== therapistId).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
