@@ -370,13 +370,15 @@ function AgendaPage() {
                 lead={leadByRoom.get(room.id) || null}
                 canEdit={canEdit}
                 onMark={markStatus}
+                onCheckIn={toggleCheckIn}
                 onDelete={deleteAppt}
                 onDeleteSeries={deleteSeries}
+                onCreate={() => openCreateAt(room.id, 9)}
               />
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
         )}
       </main>
     </div>
