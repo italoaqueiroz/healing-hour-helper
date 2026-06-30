@@ -790,13 +790,13 @@ function NewAppointmentForm({
   const needsPatient = eventType === "session" || eventType === "online";
 
   async function checkConflicts(
-    items: Array<{ starts_at: string; ends_at: string; room_id: string; therapist_id: string; co_therapist_id: string | null }>
+    items: Array<{ starts_at: string; ends_at: string; room_id: string; therapist_id: string; co_therapist_id: string | null; additional_therapist_ids: string[] }>
   ): Promise<string[]> {
     const warnings: string[] = [];
     for (const it of items) {
       const { data } = await supabase
         .from("appointments")
-        .select("id, starts_at, ends_at, room_id, therapist_id, co_therapist_id, patient_name, title, event_type")
+        .select("id, starts_at, ends_at, room_id, therapist_id, co_therapist_id, additional_therapist_ids, patient_name, title, event_type")
         .lt("starts_at", it.ends_at)
         .gt("ends_at", it.starts_at)
         .neq("attendance_status", "cancelled");
@@ -805,9 +805,9 @@ function NewAppointmentForm({
         const when = format(parseISO(c.starts_at), "dd/MM HH:mm");
         const who = c.patient_name || c.title || EVENT_TYPES.find((e) => e.value === c.event_type)?.label || "evento";
         if (c.room_id === it.room_id) warnings.push(`Sala já ocupada às ${when} (${who}).`);
-        const therapists = [it.therapist_id, it.co_therapist_id].filter(Boolean);
-        const otherTherapists = [c.therapist_id, c.co_therapist_id].filter(Boolean);
-        if (therapists.some((t) => otherTherapists.includes(t!))) warnings.push(`Terapeuta já tem evento às ${when} (${who}).`);
+        const mine = [it.therapist_id, it.co_therapist_id, ...it.additional_therapist_ids].filter(Boolean);
+        const theirs = [c.therapist_id, c.co_therapist_id, ...((c as { additional_therapist_ids?: string[] }).additional_therapist_ids || [])].filter(Boolean);
+        if (mine.some((t) => theirs.includes(t!))) warnings.push(`Terapeuta já tem evento às ${when} (${who}).`);
       }
     }
     return Array.from(new Set(warnings)).slice(0, 5);
