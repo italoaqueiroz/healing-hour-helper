@@ -32,6 +32,7 @@ type Appointment = {
   id: string;
   therapist_id: string;
   co_therapist_id: string | null;
+  additional_therapist_ids: string[];
   room_id: string;
   patient_id: string | null;
   patient_name: string | null;
