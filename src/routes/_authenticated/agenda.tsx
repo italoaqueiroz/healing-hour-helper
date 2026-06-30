@@ -728,6 +728,7 @@ function NewAppointmentForm({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [therapistId, setTherapistId] = useState<string>(userId || "");
   const [coTherapistId, setCoTherapistId] = useState<string>("none");
+  const [extraTherapists, setExtraTherapists] = useState<string[]>([""]);
   const [roomId, setRoomId] = useState(prefill?.roomId || rooms[0]?.id || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState(prefill?.hour != null ? `${String(prefill.hour).padStart(2, "0")}:00` : "09:00");
