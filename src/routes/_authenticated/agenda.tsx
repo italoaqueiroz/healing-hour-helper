@@ -785,19 +785,44 @@ function NewAppointmentForm({
     return { id: data.id, name: data.full_name };
   }
 
+  const needsPatient = eventType === "session" || eventType === "online";
+
+  async function checkConflicts(
+    items: Array<{ starts_at: string; ends_at: string; room_id: string; therapist_id: string; co_therapist_id: string | null }>
+  ): Promise<string[]> {
+    const warnings: string[] = [];
+    for (const it of items) {
+      const { data } = await supabase
+        .from("appointments")
+        .select("id, starts_at, ends_at, room_id, therapist_id, co_therapist_id, patient_name, title, event_type")
+        .lt("starts_at", it.ends_at)
+        .gt("ends_at", it.starts_at)
+        .neq("attendance_status", "cancelled");
+      if (!data) continue;
+      for (const c of data) {
+        const when = format(parseISO(c.starts_at), "dd/MM HH:mm");
+        const who = c.patient_name || c.title || EVENT_TYPES.find((e) => e.value === c.event_type)?.label || "evento";
+        if (c.room_id === it.room_id) warnings.push(`Sala já ocupada às ${when} (${who}).`);
+        const therapists = [it.therapist_id, it.co_therapist_id].filter(Boolean);
+        const otherTherapists = [c.therapist_id, c.co_therapist_id].filter(Boolean);
+        if (therapists.some((t) => otherTherapists.includes(t!))) warnings.push(`Terapeuta já tem evento às ${when} (${who}).`);
+      }
+    }
+    return Array.from(new Set(warnings)).slice(0, 5);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId || !roomId) return;
     if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
-    const isSession = eventType === "session";
-    if (isSession && !patientQuery.trim()) return toast.error("Informe o paciente.");
-    if (!isSession && !title.trim()) return toast.error("Informe um título para o evento.");
+    if (needsPatient && !patientQuery.trim()) return toast.error("Informe o paciente.");
+    if (!needsPatient && !title.trim()) return toast.error("Informe um título para o evento.");
     const finalTherapist = isAdmin ? (therapistId || userId) : userId;
     const finalCoTherapist = coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
     setSaving(true);
 
-    const patient = isSession ? await ensurePatient() : { id: null, name: "" };
-    if (isSession && !patient.name) { setSaving(false); return; }
+    const patient = needsPatient ? await ensurePatient() : { id: null, name: "" };
+    if (needsPatient && !patient.name) { setSaving(false); return; }
 
     const rows: Array<{
       therapist_id: string; co_therapist_id: string | null; room_id: string;
@@ -819,8 +844,8 @@ function NewAppointmentForm({
         co_therapist_id: finalCoTherapist,
         room_id: roomId,
         patient_id: patient.id,
-        patient_name: isSession ? patient.name : null,
-        title: !isSession ? title.trim() : null,
+        patient_name: needsPatient ? patient.name : null,
+        title: !needsPatient ? title.trim() : null,
         event_type: eventType,
         starts_at: new Date(`${d}T${startTime}:00`).toISOString(),
         ends_at: new Date(`${d}T${endTime}:00`).toISOString(),
@@ -833,16 +858,24 @@ function NewAppointmentForm({
       if (rows.length > 60) break;
     }
 
+    // Conflict check
+    const conflicts = await checkConflicts(rows);
+    if (conflicts.length) {
+      const proceed = window.confirm(
+        "⚠️ Conflito(s) detectado(s):\n\n" + conflicts.join("\n") + "\n\nDeseja agendar mesmo assim?"
+      );
+      if (!proceed) { setSaving(false); return; }
+    }
+
     const { data: inserted, error } = await supabase.from("appointments").insert(rows).select("id");
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success(rows.length > 1 ? `${rows.length} eventos agendados` : "Evento agendado");
 
-    // Fire-and-forget notification to therapist(s)
     if (inserted?.length) {
       supabase.functions.invoke("notify-appointment", {
         body: { appointmentIds: inserted.map((r) => r.id) },
-      }).catch(() => { /* silencioso — não bloqueia UI */ });
+      }).catch(() => {});
     }
     onCreated();
   }
@@ -863,7 +896,7 @@ function NewAppointmentForm({
         </Select>
       </div>
 
-      {eventType === "session" ? (
+      {needsPatient ? (
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 relative">
@@ -909,43 +942,41 @@ function NewAppointmentForm({
         </div>
       )}
 
-      {isAdmin && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Terapeuta principal</Label>
-            <Select value={therapistId} onValueChange={setTherapistId}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Co-terapeuta (opcional)</Label>
-            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhum —</SelectItem>
-                {profiles.filter((p) => p.id !== therapistId).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Terapeuta principal</Label>
+          <Select value={therapistId || userId || ""} onValueChange={setTherapistId} disabled={!isAdmin}>
+            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectContent>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        <div>
+          <Label>Co-terapeuta (opcional)</Label>
+          <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Nenhum —</SelectItem>
+              {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <div>
         <Label>Sala</Label>
