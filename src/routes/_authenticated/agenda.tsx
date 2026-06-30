@@ -987,18 +987,6 @@ function NewAppointmentForm({
           </SelectContent>
         </Select>
       </div>
-        </div>
-      )}
-
-      <div>
-        <Label>Sala</Label>
-        <Select value={roomId} onValueChange={setRoomId}>
-          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-          <SelectContent>
-            {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <Label htmlFor="date">Data</Label>
