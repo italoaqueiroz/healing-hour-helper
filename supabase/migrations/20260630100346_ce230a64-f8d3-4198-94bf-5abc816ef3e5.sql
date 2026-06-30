@@ -1,0 +1,1 @@
+ALTER TABLE public.appointments ADD COLUMN IF NOT EXISTS additional_therapist_ids uuid[] NOT NULL DEFAULT '{}'::uuid[];

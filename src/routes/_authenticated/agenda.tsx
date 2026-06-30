@@ -32,6 +32,7 @@ type Appointment = {
   id: string;
   therapist_id: string;
   co_therapist_id: string | null;
+  additional_therapist_ids: string[];
   room_id: string;
   patient_id: string | null;
   patient_name: string | null;
@@ -173,7 +174,7 @@ function AgendaPage() {
   }
 
   function canEdit(a: Appointment) {
-    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId;
+    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId || (a.additional_therapist_ids || []).includes(userId || "");
   }
 
   async function toggleCheckIn(a: Appointment) {
@@ -727,6 +728,7 @@ function NewAppointmentForm({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [therapistId, setTherapistId] = useState<string>(userId || "");
   const [coTherapistId, setCoTherapistId] = useState<string>("none");
+  const [extraTherapists, setExtraTherapists] = useState<string[]>([""]);
   const [roomId, setRoomId] = useState(prefill?.roomId || rooms[0]?.id || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState(prefill?.hour != null ? `${String(prefill.hour).padStart(2, "0")}:00` : "09:00");
@@ -788,13 +790,13 @@ function NewAppointmentForm({
   const needsPatient = eventType === "session" || eventType === "online";
 
   async function checkConflicts(
-    items: Array<{ starts_at: string; ends_at: string; room_id: string; therapist_id: string; co_therapist_id: string | null }>
+    items: Array<{ starts_at: string; ends_at: string; room_id: string; therapist_id: string; co_therapist_id: string | null; additional_therapist_ids: string[] }>
   ): Promise<string[]> {
     const warnings: string[] = [];
     for (const it of items) {
       const { data } = await supabase
         .from("appointments")
-        .select("id, starts_at, ends_at, room_id, therapist_id, co_therapist_id, patient_name, title, event_type")
+        .select("id, starts_at, ends_at, room_id, therapist_id, co_therapist_id, additional_therapist_ids, patient_name, title, event_type")
         .lt("starts_at", it.ends_at)
         .gt("ends_at", it.starts_at)
         .neq("attendance_status", "cancelled");
@@ -803,9 +805,9 @@ function NewAppointmentForm({
         const when = format(parseISO(c.starts_at), "dd/MM HH:mm");
         const who = c.patient_name || c.title || EVENT_TYPES.find((e) => e.value === c.event_type)?.label || "evento";
         if (c.room_id === it.room_id) warnings.push(`Sala já ocupada às ${when} (${who}).`);
-        const therapists = [it.therapist_id, it.co_therapist_id].filter(Boolean);
-        const otherTherapists = [c.therapist_id, c.co_therapist_id].filter(Boolean);
-        if (therapists.some((t) => otherTherapists.includes(t!))) warnings.push(`Terapeuta já tem evento às ${when} (${who}).`);
+        const mine = [it.therapist_id, it.co_therapist_id, ...it.additional_therapist_ids].filter(Boolean);
+        const theirs = [c.therapist_id, c.co_therapist_id, ...((c as { additional_therapist_ids?: string[] }).additional_therapist_ids || [])].filter(Boolean);
+        if (mine.some((t) => theirs.includes(t!))) warnings.push(`Terapeuta já tem evento às ${when} (${who}).`);
       }
     }
     return Array.from(new Set(warnings)).slice(0, 5);
@@ -818,14 +820,17 @@ function NewAppointmentForm({
     if (needsPatient && !patientQuery.trim()) return toast.error("Informe o paciente.");
     if (!needsPatient && !title.trim()) return toast.error("Informe um título para o evento.");
     const finalTherapist = isAdmin ? (therapistId || userId) : userId;
-    const finalCoTherapist = coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
+    const finalCoTherapist = needsPatient && coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
+    const finalExtras = !needsPatient
+      ? Array.from(new Set(extraTherapists.filter((id) => id && id !== finalTherapist)))
+      : [];
     setSaving(true);
 
     const patient = needsPatient ? await ensurePatient() : { id: null, name: "" };
     if (needsPatient && !patient.name) { setSaving(false); return; }
 
     const rows: Array<{
-      therapist_id: string; co_therapist_id: string | null; room_id: string;
+      therapist_id: string; co_therapist_id: string | null; additional_therapist_ids: string[]; room_id: string;
       patient_id: string | null; patient_name: string | null;
       title: string | null; event_type: EventType;
       starts_at: string; ends_at: string; notes: string | null;
@@ -842,6 +847,7 @@ function NewAppointmentForm({
       rows.push({
         therapist_id: finalTherapist,
         co_therapist_id: finalCoTherapist,
+        additional_therapist_ids: finalExtras,
         room_id: roomId,
         patient_id: patient.id,
         patient_name: needsPatient ? patient.name : null,
@@ -942,7 +948,7 @@ function NewAppointmentForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <div>
           <Label>Terapeuta principal</Label>
           <Select value={therapistId || userId || ""} onValueChange={setTherapistId} disabled={!isAdmin}>
@@ -959,23 +965,75 @@ function NewAppointmentForm({
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label>Co-terapeuta (opcional)</Label>
-          <Select value={coTherapistId} onValueChange={setCoTherapistId}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Nenhum —</SelectItem>
-              {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {needsPatient ? (
+          <div>
+            <Label>Co-terapeuta (opcional)</Label>
+            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Nenhum —</SelectItem>
+                {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>Outros terapeutas (opcional)</Label>
+            {extraTherapists.map((val, idx) => {
+              const taken = new Set([therapistId || userId || "", ...extraTherapists.filter((_, i) => i !== idx)].filter(Boolean));
+              const options = profiles.filter((p) => !taken.has(p.id));
+              return (
+                <div key={idx} className="flex items-center gap-2">
+                  <Select
+                    value={val || "none"}
+                    onValueChange={(v) => {
+                      setExtraTherapists((cur) => {
+                        const next = [...cur];
+                        next[idx] = v === "none" ? "" : v;
+                        const cleaned = next.filter((x, i) => x || i === next.length - 1);
+                        const last = cleaned[cleaned.length - 1];
+                        if (last && options.length > 1) cleaned.push("");
+                        return cleaned.length ? cleaned : [""];
+                      });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder={idx === 0 ? "Adicionar terapeuta…" : "Adicionar mais…"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Nenhum —</SelectItem>
+                      {options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                            {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {val && (
+                    <Button type="button" variant="ghost" size="sm"
+                      onClick={() => setExtraTherapists((cur) => {
+                        const next = cur.filter((_, i) => i !== idx);
+                        return next.length ? next : [""];
+                      })}>
+                      ✕
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            <p className="text-xs text-muted-foreground">
+              {extraTherapists.filter(Boolean).length} terapeuta(s) adicionado(s). Um novo campo aparece automaticamente ao selecionar.
+            </p>
+          </div>
+        )}
       </div>
 
       <div>

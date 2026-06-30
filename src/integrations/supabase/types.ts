@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       appointments: {
         Row: {
+          additional_therapist_ids: string[]
           attendance_marked_at: string | null
           attendance_status: Database["public"]["Enums"]["attendance_status"]
           check_in_at: string | null
@@ -37,6 +38,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          additional_therapist_ids?: string[]
           attendance_marked_at?: string | null
           attendance_status?: Database["public"]["Enums"]["attendance_status"]
           check_in_at?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          additional_therapist_ids?: string[]
           attendance_marked_at?: string | null
           attendance_status?: Database["public"]["Enums"]["attendance_status"]
           check_in_at?: string | null
