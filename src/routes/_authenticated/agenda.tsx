@@ -896,7 +896,7 @@ function NewAppointmentForm({
         </Select>
       </div>
 
-      {eventType === "session" ? (
+      {needsPatient ? (
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 relative">
@@ -942,41 +942,51 @@ function NewAppointmentForm({
         </div>
       )}
 
-      {isAdmin && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Terapeuta principal</Label>
-            <Select value={therapistId} onValueChange={setTherapistId}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Co-terapeuta (opcional)</Label>
-            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nenhum —</SelectItem>
-                {profiles.filter((p) => p.id !== therapistId).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Terapeuta principal</Label>
+          <Select value={therapistId || userId || ""} onValueChange={setTherapistId} disabled={!isAdmin}>
+            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectContent>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Co-terapeuta (opcional)</Label>
+          <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Nenhum —</SelectItem>
+              {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label>Sala</Label>
+        <Select value={roomId} onValueChange={setRoomId}>
+          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+          <SelectContent>
+            {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
         </div>
       )}
 
