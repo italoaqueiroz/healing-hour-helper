@@ -948,7 +948,7 @@ function NewAppointmentForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <div>
           <Label>Terapeuta principal</Label>
           <Select value={therapistId || userId || ""} onValueChange={setTherapistId} disabled={!isAdmin}>
@@ -965,23 +965,75 @@ function NewAppointmentForm({
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label>Co-terapeuta (opcional)</Label>
-          <Select value={coTherapistId} onValueChange={setCoTherapistId}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— Nenhum —</SelectItem>
-              {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
-                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {needsPatient ? (
+          <div>
+            <Label>Co-terapeuta (opcional)</Label>
+            <Select value={coTherapistId} onValueChange={setCoTherapistId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Nenhum —</SelectItem>
+                {profiles.filter((p) => p.id !== (therapistId || userId)).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                      {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>Outros terapeutas (opcional)</Label>
+            {extraTherapists.map((val, idx) => {
+              const taken = new Set([therapistId || userId || "", ...extraTherapists.filter((_, i) => i !== idx)].filter(Boolean));
+              const options = profiles.filter((p) => !taken.has(p.id));
+              return (
+                <div key={idx} className="flex items-center gap-2">
+                  <Select
+                    value={val || "none"}
+                    onValueChange={(v) => {
+                      setExtraTherapists((cur) => {
+                        const next = [...cur];
+                        next[idx] = v === "none" ? "" : v;
+                        const cleaned = next.filter((x, i) => x || i === next.length - 1);
+                        const last = cleaned[cleaned.length - 1];
+                        if (last && options.length > 1) cleaned.push("");
+                        return cleaned.length ? cleaned : [""];
+                      });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder={idx === 0 ? "Adicionar terapeuta…" : "Adicionar mais…"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Nenhum —</SelectItem>
+                      {options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                            {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {val && (
+                    <Button type="button" variant="ghost" size="sm"
+                      onClick={() => setExtraTherapists((cur) => {
+                        const next = cur.filter((_, i) => i !== idx);
+                        return next.length ? next : [""];
+                      })}>
+                      ✕
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            <p className="text-xs text-muted-foreground">
+              {extraTherapists.filter(Boolean).length} terapeuta(s) adicionado(s). Um novo campo aparece automaticamente ao selecionar.
+            </p>
+          </div>
+        )}
       </div>
 
       <div>
