@@ -820,14 +820,17 @@ function NewAppointmentForm({
     if (needsPatient && !patientQuery.trim()) return toast.error("Informe o paciente.");
     if (!needsPatient && !title.trim()) return toast.error("Informe um título para o evento.");
     const finalTherapist = isAdmin ? (therapistId || userId) : userId;
-    const finalCoTherapist = coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
+    const finalCoTherapist = needsPatient && coTherapistId !== "none" && coTherapistId !== finalTherapist ? coTherapistId : null;
+    const finalExtras = !needsPatient
+      ? Array.from(new Set(extraTherapists.filter((id) => id && id !== finalTherapist)))
+      : [];
     setSaving(true);
 
     const patient = needsPatient ? await ensurePatient() : { id: null, name: "" };
     if (needsPatient && !patient.name) { setSaving(false); return; }
 
     const rows: Array<{
-      therapist_id: string; co_therapist_id: string | null; room_id: string;
+      therapist_id: string; co_therapist_id: string | null; additional_therapist_ids: string[]; room_id: string;
       patient_id: string | null; patient_name: string | null;
       title: string | null; event_type: EventType;
       starts_at: string; ends_at: string; notes: string | null;
@@ -844,6 +847,7 @@ function NewAppointmentForm({
       rows.push({
         therapist_id: finalTherapist,
         co_therapist_id: finalCoTherapist,
+        additional_therapist_ids: finalExtras,
         room_id: roomId,
         patient_id: patient.id,
         patient_name: needsPatient ? patient.name : null,
