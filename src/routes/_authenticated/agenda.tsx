@@ -174,7 +174,7 @@ function AgendaPage() {
   }
 
   function canEdit(a: Appointment) {
-    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId;
+    return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId || (a.additional_therapist_ids || []).includes(userId || "");
   }
 
   async function toggleCheckIn(a: Appointment) {
