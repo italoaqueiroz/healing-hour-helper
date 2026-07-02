@@ -449,6 +449,7 @@ function RoomColumn({
             highlighted={!!lead && a.therapist_id === lead.therapist_id}
             canEdit={canEdit(a)}
             onMark={onMark} onCheckIn={onCheckIn} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
+            onOpen={onOpen}
           />
         ))}
       </div>
