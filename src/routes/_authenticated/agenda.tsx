@@ -1180,3 +1180,136 @@ function NewAppointmentForm({
     </form>
   );
 }
+
+function EditAppointmentForm({
+  appt, rooms, profiles, isAdmin, canEdit, onSaved, onCancel,
+}: {
+  appt: Appointment;
+  rooms: Room[];
+  profiles: Profile[];
+  isAdmin: boolean;
+  canEdit: boolean;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const startD = parseISO(appt.starts_at);
+  const endD = parseISO(appt.ends_at);
+  const [roomId, setRoomId] = useState(appt.room_id);
+  const [date, setDate] = useState(format(startD, "yyyy-MM-dd"));
+  const [startTime, setStartTime] = useState(format(startD, "HH:mm"));
+  const [endTime, setEndTime] = useState(format(endD, "HH:mm"));
+  const [therapistId, setTherapistId] = useState(appt.therapist_id);
+  const [coTherapistId, setCoTherapistId] = useState<string>(appt.co_therapist_id || "none");
+  const [patientName, setPatientName] = useState(appt.patient_name || "");
+  const [title, setTitle] = useState(appt.title || "");
+  const [notes, setNotes] = useState(appt.notes || "");
+  const [saving, setSaving] = useState(false);
+  const isSession = appt.event_type === "session";
+  const needsPatient = isSession || appt.event_type === "online";
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canEdit) return toast.error("Sem permissão");
+    if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
+    setSaving(true);
+    const { error } = await supabase.from("appointments").update({
+      room_id: roomId,
+      therapist_id: isAdmin ? therapistId : appt.therapist_id,
+      co_therapist_id: coTherapistId === "none" ? null : coTherapistId,
+      starts_at: new Date(`${date}T${startTime}:00`).toISOString(),
+      ends_at: new Date(`${date}T${endTime}:00`).toISOString(),
+      patient_name: needsPatient ? patientName.trim() || null : null,
+      title: !needsPatient ? title.trim() || null : null,
+      notes: notes.trim() || null,
+    }).eq("id", appt.id);
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Atendimento atualizado");
+    onSaved();
+  }
+
+  return (
+    <form onSubmit={save} className="space-y-3">
+      {!canEdit && (
+        <div className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+          Você está a visualizar. Só o técnico responsável ou um admin pode editar.
+        </div>
+      )}
+      {needsPatient ? (
+        <div>
+          <Label>Paciente</Label>
+          <Input value={patientName} onChange={(e) => setPatientName(e.target.value)} disabled={!canEdit} />
+        </div>
+      ) : (
+        <div>
+          <Label>Título</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit} />
+        </div>
+      )}
+
+      <div>
+        <Label>Sala</Label>
+        <Select value={roomId} onValueChange={setRoomId} disabled={!canEdit}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>{rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <Label>Data</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!canEdit} />
+        </div>
+        <div>
+          <Label>Início</Label>
+          <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={!canEdit} />
+        </div>
+        <div>
+          <Label>Fim</Label>
+          <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} disabled={!canEdit} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        <div>
+          <Label>Terapeuta principal</Label>
+          <Select value={therapistId} onValueChange={setTherapistId} disabled={!isAdmin}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                    {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Co-terapeuta</Label>
+          <Select value={coTherapistId} onValueChange={setCoTherapistId} disabled={!canEdit}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Nenhum —</SelectItem>
+              {profiles.filter((p) => p.id !== therapistId).map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.full_name || p.email?.split("@")[0] || "Terapeuta"}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label>Notas</Label>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} disabled={!canEdit} />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">Fechar</Button>
+        {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "Salvando…" : "Salvar alterações"}</Button>}
+      </div>
+    </form>
+  );
+}
