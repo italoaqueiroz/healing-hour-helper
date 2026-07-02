@@ -484,7 +484,9 @@ function AppointmentCard({
   const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
   const checkedIn = !!a.check_in_at;
   return (
-    <div className={`rounded-lg p-3 transition-opacity border-l-4 ${
+    <div
+      onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
+      className={`cursor-pointer rounded-lg p-3 transition-opacity border-l-4 hover:ring-1 hover:ring-primary/30 ${
       cancelled
         ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
         : highlighted
