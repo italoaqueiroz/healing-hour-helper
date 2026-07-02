@@ -465,7 +465,7 @@ const ATTENDANCE_OPTIONS: Array<{ value: Status; sigla: string; label: string; c
 ];
 
 function AppointmentCard({
-  a, highlighted, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries,
+  a, highlighted, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onOpen,
 }: {
   a: Appointment;
   highlighted: boolean;
@@ -474,6 +474,7 @@ function AppointmentCard({
   onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
+  onOpen: (a: Appointment) => void;
 }) {
   const therapist = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
   const cancelled = a.attendance_status === "cancelled";
