@@ -93,6 +93,7 @@ function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"colunas" | "grade">("grade");
   const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
+  const [editing, setEditing] = useState<Appointment | null>(null);
 
   function openCreateAt(roomId: string, hour: number) {
     setPrefill({ roomId, hour });
