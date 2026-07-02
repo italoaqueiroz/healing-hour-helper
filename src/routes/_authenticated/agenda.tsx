@@ -557,8 +557,43 @@ function AppointmentCard({
   );
 }
 
+const PX_PER_MIN = 1; // 60px per hour
+const GRID_START_HOUR = HOURS[0];
+const GRID_END_HOUR = HOURS[HOURS.length - 1] + 1;
+const TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;
+
+function layoutLanes(items: Appointment[]) {
+  // Returns [appt, laneIndex, laneCount] per item using simple lane packing.
+  const sorted = [...items].sort((a, b) => parseISO(a.starts_at).getTime() - parseISO(b.starts_at).getTime());
+  const lanes: Appointment[][] = [];
+  const placement = new Map<string, number>();
+  for (const a of sorted) {
+    const s = parseISO(a.starts_at).getTime();
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      const last = lanes[i][lanes[i].length - 1];
+      if (parseISO(last.ends_at).getTime() <= s) {
+        lanes[i].push(a); placement.set(a.id, i); placed = true; break;
+      }
+    }
+    if (!placed) { lanes.push([a]); placement.set(a.id, lanes.length - 1); }
+  }
+  // Compute overlap group size per item: for each item, count lanes that overlap it.
+  const result: Array<{ a: Appointment; lane: number; total: number }> = [];
+  for (const a of sorted) {
+    const s = parseISO(a.starts_at).getTime();
+    const e = parseISO(a.ends_at).getTime();
+    let total = 0;
+    for (const lane of lanes) {
+      if (lane.some((x) => parseISO(x.starts_at).getTime() < e && parseISO(x.ends_at).getTime() > s)) total++;
+    }
+    result.push({ a, lane: placement.get(a.id)!, total: Math.max(total, 1) });
+  }
+  return result;
+}
+
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove,
+  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
@@ -568,139 +603,167 @@ function GridView({
   onDelete: (a: Appointment) => void;
   onCreateAt: (roomId: string, hour: number) => void;
   onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
+  onOpen: (a: Appointment) => void;
 }) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
 
-  const cell = new Map<string, Map<number, Appointment[]>>();
-  rooms.forEach((r) => cell.set(r.id, new Map()));
-  appts.forEach((a) => {
-    const h = parseISO(a.starts_at).getHours();
-    const m = cell.get(a.room_id)!;
-    const arr = m.get(h) || [];
-    arr.push(a); m.set(h, arr);
-  });
+  const byRoom = useMemo(() => {
+    const m = new Map<string, Appointment[]>();
+    rooms.forEach((r) => m.set(r.id, []));
+    appts.forEach((a) => { const arr = m.get(a.room_id); if (arr) arr.push(a); });
+    return m;
+  }, [rooms, appts]);
+
+  const totalHeight = TOTAL_MINUTES * PX_PER_MIN;
 
   return (
     <div className="mt-6 overflow-auto rounded-lg border border-border bg-card">
-      <table className="min-w-full border-collapse text-sm">
-        <thead className="bg-secondary/60">
-          <tr>
-            <th className="sticky left-0 z-10 bg-secondary/80 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Hora</th>
-            {rooms.map((r) => {
-              const lead = leadByRoom.get(r.id);
-              return (
-                <th key={r.id} className="border-l border-border px-3 py-2 text-left">
-                  <div className="font-display text-base">{r.name}</div>
+      <div className="flex min-w-max">
+        {/* Hour gutter */}
+        <div className="shrink-0 border-r border-border bg-secondary/40">
+          <div className="h-14 border-b border-border" />
+          <div className="relative" style={{ height: totalHeight }}>
+            {HOURS.map((h, i) => (
+              <div key={h} className="absolute left-0 right-0 flex items-start justify-end pr-2 text-[11px] font-medium text-muted-foreground"
+                style={{ top: i * 60 * PX_PER_MIN - 6, width: 56 }}>
+                {String(h).padStart(2, "0")}:00
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Room columns */}
+        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${rooms.length}, minmax(140px, 1fr))` }}>
+          {rooms.map((r) => {
+            const lead = leadByRoom.get(r.id);
+            return (
+              <div key={r.id} className="border-l border-border">
+                <div className="h-14 border-b border-border bg-secondary/60 px-2 py-1 sticky top-0 z-10">
+                  <div className="font-display text-sm truncate">{r.name}</div>
                   {lead ? (
-                    <div className="flex items-center gap-1 text-[11px] font-normal">
-                      <Star className="h-3 w-3" style={{ color: lead.color || undefined, fill: lead.color || undefined }} />
-                      <span className="font-medium" style={{ color: lead.color || undefined }}>{lead.name}</span>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <Star className="h-2.5 w-2.5" style={{ color: lead.color || undefined, fill: lead.color || undefined }} />
+                      <span className="font-medium truncate" style={{ color: lead.color || undefined }}>{lead.name}</span>
                       <span className="text-muted-foreground">· {lead.count}</span>
                     </div>
-                  ) : <div className="text-[11px] text-muted-foreground font-normal">livre</div>}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {HOURS.map((h) => (
-            <tr key={h} className="border-t border-border">
-              <td className="sticky left-0 z-10 bg-card px-3 py-2 align-top text-xs font-medium text-muted-foreground">
-                {String(h).padStart(2, "0")}:00
-              </td>
-              {rooms.map((r) => {
-                const items = cell.get(r.id)?.get(h) || [];
-                const key = `${r.id}:${h}`;
-                const isOver = dragOver === key;
-                return (
-                  <td key={r.id}
-                    className={`border-l border-border p-1.5 align-top min-w-[160px] cursor-pointer transition-colors ${isOver ? "bg-accent/40" : "hover:bg-muted/40"}`}
-                    onClick={(e) => { if (e.target === e.currentTarget) onCreateAt(r.id, h); }}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
-                    onDragLeave={() => setDragOver((k) => k === key ? null : k)}
-                    onDrop={(e) => {
-                      e.preventDefault(); setDragOver(null);
-                      const id = e.dataTransfer.getData("text/plain");
-                      const a = apptById.get(id);
-                      if (a && (a.room_id !== r.id || parseISO(a.starts_at).getHours() !== h)) onMove(a, r.id, h);
-                    }}
-                    title={items.length === 0 ? "Clique para agendar" : undefined}
-                  >
-                    {items.length === 0 && (
-                      <div className="flex h-full min-h-[44px] items-center justify-center text-[10px] text-muted-foreground/0 hover:text-muted-foreground">
-                        <Plus className="h-3 w-3 mr-0.5" />novo
-                      </div>
-                    )}
-                    {items.map((a) => {
-                      const cancelled = a.attendance_status === "cancelled";
-                      const eff = effectiveStatus(a);
-                      const color = a.profiles?.color || undefined;
-                      return (
-                        <div key={a.id}
-                          draggable={canEdit(a)}
-                          onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`mb-1 rounded-md px-2 py-1.5 text-xs border-l-4 ${canEdit(a) ? "cursor-grab active:cursor-grabbing" : ""} ${
-                            cancelled
-                              ? "border border-dashed border-muted-foreground/40 bg-muted/30 opacity-60"
-                              : "border border-border bg-background"
-                          }`}
-                          style={!cancelled ? { borderLeftColor: color } : undefined}>
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="min-w-0">
-                              <div className={`font-medium truncate flex items-center gap-1 ${cancelled ? "line-through" : ""}`}>
-                                {a.event_type !== "session" && <span title={EVENT_TYPES.find(e => e.value === a.event_type)?.label}>{EVENT_TYPES.find(e => e.value === a.event_type)?.icon}</span>}
-                                {eventLabel(a)}
-                                {a.check_in_at && <BellRing className="h-2.5 w-2.5 text-[var(--color-success)]" />}
+                  ) : <div className="text-[10px] text-muted-foreground">livre</div>}
+                </div>
+                <div className="relative" style={{ height: totalHeight }}>
+                  {/* Hour bands (click to create, drop target) */}
+                  {HOURS.map((h, i) => {
+                    const key = `${r.id}:${h}`;
+                    const isOver = dragOver === key;
+                    return (
+                      <div key={h}
+                        className={`absolute left-0 right-0 border-t border-border/60 cursor-pointer transition-colors ${isOver ? "bg-accent/40" : "hover:bg-muted/40"}`}
+                        style={{ top: i * 60 * PX_PER_MIN, height: 60 * PX_PER_MIN }}
+                        onClick={() => onCreateAt(r.id, h)}
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
+                        onDragLeave={() => setDragOver((k) => k === key ? null : k)}
+                        onDrop={(e) => {
+                          e.preventDefault(); setDragOver(null);
+                          const id = e.dataTransfer.getData("text/plain");
+                          const a = apptById.get(id);
+                          if (a && (a.room_id !== r.id || parseISO(a.starts_at).getHours() !== h)) onMove(a, r.id, h);
+                        }}
+                      />
+                    );
+                  })}
+
+                  {/* Half-hour guide lines */}
+                  {HOURS.map((h, i) => (
+                    <div key={`half-${h}`} className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-border/30"
+                      style={{ top: (i * 60 + 30) * PX_PER_MIN }} />
+                  ))}
+
+                  {/* Cards */}
+                  {layoutLanes(byRoom.get(r.id) || []).map(({ a, lane, total }) => {
+                    const startD = parseISO(a.starts_at);
+                    const endD = parseISO(a.ends_at);
+                    const startMin = (startD.getHours() - GRID_START_HOUR) * 60 + startD.getMinutes();
+                    const durMin = Math.max(15, (endD.getTime() - startD.getTime()) / 60000);
+                    const top = Math.max(0, startMin * PX_PER_MIN);
+                    const height = durMin * PX_PER_MIN;
+                    const widthPct = 100 / total;
+                    const leftPct = lane * widthPct;
+                    const cancelled = a.attendance_status === "cancelled";
+                    const eff = effectiveStatus(a);
+                    const color = a.profiles?.color || undefined;
+                    const compact = height < 44;
+                    return (
+                      <div key={a.id}
+                        draggable={canEdit(a)}
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); }}
+                        onClick={(e) => { e.stopPropagation(); if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
+                        className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-[11px] shadow-sm border-l-[3px] hover:ring-1 hover:ring-primary/40 ${canEdit(a) ? "cursor-pointer" : "cursor-pointer"} ${
+                          cancelled
+                            ? "border border-dashed border-muted-foreground/40 bg-muted/40 opacity-60"
+                            : "border border-border bg-background"
+                        }`}
+                        style={{
+                          top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                          ...(cancelled ? {} : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
+                        }}
+                        title={`${format(startD, "HH:mm")}–${format(endD, "HH:mm")} · ${eventLabel(a)}`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <div className={`min-w-0 ${cancelled ? "line-through" : ""}`}>
+                            <div className="font-semibold truncate flex items-center gap-1">
+                              {a.event_type !== "session" && <span>{EVENT_TYPES.find(e => e.value === a.event_type)?.icon}</span>}
+                              <span className="truncate">{eventLabel(a)}</span>
+                              {a.check_in_at && <BellRing className="h-2.5 w-2.5 shrink-0 text-[var(--color-success)]" />}
+                            </div>
+                            {!compact && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {format(startD, "HH:mm")}–{format(endD, "HH:mm")}
                               </div>
-                              <div className={`text-[10px] text-muted-foreground ${cancelled ? "line-through" : ""}`}>
-                                {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")}
-                              </div>
-                              <div className={`text-[10px] truncate ${cancelled ? "text-muted-foreground" : "font-medium"}`}
-                                style={!cancelled ? { color } : undefined}>
+                            )}
+                            {!compact && (
+                              <div className="text-[10px] truncate font-medium" style={!cancelled ? { color } : undefined}>
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
                               </div>
-                            </div>
-                            {a.event_type === "session" && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
+                            )}
                           </div>
-                          {canEdit(a) && !cancelled && (
-                            <div className="mt-1 flex flex-wrap gap-0.5">
-                              {a.event_type === "session" && (
-                                <button title={a.check_in_at ? "Desfazer check-in" : "Check-in"}
-                                  onClick={() => onCheckIn(a)}
-                                  className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.check_in_at ? "bg-[var(--color-success)] text-[var(--color-success-foreground)]" : "hover:bg-muted"}`}>
-                                  <BellRing className="inline h-3 w-3" />
-                                </button>
-                              )}
-                              {a.event_type === "session" && ATTENDANCE_OPTIONS.map((opt) => (
-                                <button key={opt.value} title={opt.label}
-                                  onClick={() => onMark(a, opt.value)}
-                                  className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.attendance_status === opt.value ? opt.cls : "hover:bg-muted"}`}>
-                                  {opt.sigla}
-                                </button>
-                              ))}
-                              <button title="Cancelar" onClick={() => onMark(a, "cancelled")}
-                                className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
-                              <button title="Excluir" onClick={() => onDelete(a)}
-                                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
-                            </div>
-                          )}
-                          {canEdit(a) && cancelled && (
-                            <button title="Reativar" onClick={() => onMark(a, "pending")}
-                              className="mt-1 text-[10px] text-primary hover:underline">Reativar</button>
+                          {a.event_type === "session" && !compact && (
+                            <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
                           )}
                         </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                        {canEdit(a) && !cancelled && height >= 72 && (
+                          <div className="mt-1 flex flex-wrap gap-0.5">
+                            {a.event_type === "session" && (
+                              <button title={a.check_in_at ? "Desfazer check-in" : "Check-in"}
+                                onClick={(e) => { e.stopPropagation(); onCheckIn(a); }}
+                                className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.check_in_at ? "bg-[var(--color-success)] text-[var(--color-success-foreground)]" : "hover:bg-muted"}`}>
+                                <BellRing className="inline h-3 w-3" />
+                              </button>
+                            )}
+                            {a.event_type === "session" && ATTENDANCE_OPTIONS.map((opt) => (
+                              <button key={opt.value} title={opt.label}
+                                onClick={(e) => { e.stopPropagation(); onMark(a, opt.value); }}
+                                className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.attendance_status === opt.value ? opt.cls : "hover:bg-muted"}`}>
+                                {opt.sigla}
+                              </button>
+                            ))}
+                            <button title="Cancelar" onClick={(e) => { e.stopPropagation(); onMark(a, "cancelled"); }}
+                              className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
+                            <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
+                              className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                          </div>
+                        )}
+                        {canEdit(a) && cancelled && (
+                          <button title="Reativar" onClick={(e) => { e.stopPropagation(); onMark(a, "pending"); }}
+                            className="mt-1 text-[10px] text-primary hover:underline">Reativar</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
