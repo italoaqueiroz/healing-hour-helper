@@ -376,13 +376,31 @@ function AgendaPage() {
                 onDelete={deleteAppt}
                 onDeleteSeries={deleteSeries}
                 onCreate={() => openCreateAt(room.id, 9)}
+                onOpen={(a) => setEditing(a)}
               />
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} />
         )}
       </main>
+
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display text-2xl">Editar atendimento</DialogTitle></DialogHeader>
+          {editing && (
+            <EditAppointmentForm
+              appt={editing}
+              rooms={rooms}
+              profiles={profiles}
+              isAdmin={isAdmin}
+              canEdit={canEdit(editing)}
+              onSaved={() => { setEditing(null); loadAppts(day); }}
+              onCancel={() => setEditing(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
