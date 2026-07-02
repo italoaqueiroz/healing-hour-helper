@@ -406,7 +406,7 @@ function AgendaPage() {
 }
 
 function RoomColumn({
-  room, appts, lead, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate,
+  room, appts, lead, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate, onOpen,
 }: {
   room: Room;
   appts: Appointment[];
@@ -417,6 +417,7 @@ function RoomColumn({
   onDelete: (a: Appointment) => void;
   onDeleteSeries: (a: Appointment) => void;
   onCreate: () => void;
+  onOpen: (a: Appointment) => void;
 }) {
   return (
     <Card className="p-4">
