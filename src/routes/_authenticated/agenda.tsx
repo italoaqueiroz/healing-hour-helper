@@ -219,7 +219,7 @@ function AgendaPage() {
       .update({ check_in_at: newVal, check_in_by: newBy }).eq("id", a.id);
     if (error) {
       setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
-      return toast.error("Não foi possível registrar check-in");
+      return toast.error("Não foi possível registar check-in");
     }
     toast.success(checking ? `${eventLabel(a)} marcado como presente na recepção` : "Check-in removido");
   }
@@ -235,23 +235,23 @@ function AgendaPage() {
     if (error) {
       setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: previous } : x));
       toast.error("Não foi possível atualizar");
-    } else toast.success(statusLabel(status) + " registrado");
+    } else toast.success(statusLabel(status) + " registado");
   }
 
   async function deleteAppt(a: Appointment) {
     if (!canEdit(a)) return;
-    if (!confirm(`Excluir "${eventLabel(a)}"?`)) return;
+    if (!confirm(`Eliminar "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("id", a.id);
-    if (error) return toast.error("Falha ao excluir.");
+    if (error) return toast.error("Falha ao eliminar.");
     setAppts((cur) => cur.filter((x) => x.id !== a.id));
     toast.success("Removido");
   }
 
   async function deleteSeries(a: Appointment) {
     if (!a.recurrence_group_id || !canEdit(a)) return;
-    if (!confirm(`Excluir toda a série recorrente de "${eventLabel(a)}"?`)) return;
+    if (!confirm(`Eliminar toda a série recorrente de "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("recurrence_group_id", a.recurrence_group_id);
-    if (error) return toast.error("Falha ao excluir a série.");
+    if (error) return toast.error("Falha ao eliminar a série.");
     setAppts((cur) => cur.filter((x) => x.recurrence_group_id !== a.recurrence_group_id));
     toast.success("Série removida");
   }
@@ -402,7 +402,7 @@ function AgendaPage() {
         </div>
 
         {loading ? (
-          <div className="mt-10 text-center text-muted-foreground">Carregando agenda…</div>
+          <div className="mt-10 text-center text-muted-foreground">A carregar agenda…</div>
         ) : view === "colunas" ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {rooms.map((room) => (
@@ -581,7 +581,7 @@ function AppointmentCard({
         {canEdit && (
           <div className="ml-auto flex gap-1">
             {a.recurrence_group_id && (
-              <Button size="sm" variant="ghost" title="Excluir toda a série"
+              <Button size="sm" variant="ghost" title="Eliminar toda a série"
                 onClick={() => onDeleteSeries(a)}
                 className="text-muted-foreground hover:text-destructive">
                 <RotateCw className="h-3.5 w-3.5" />
@@ -818,7 +818,7 @@ function GridView({
                             ))}
                             <button title="Cancelar" onClick={(e) => { e.stopPropagation(); onMark(a, "cancelled"); }}
                               className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
-                            <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
+                            <button title="Eliminar" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
                               className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                           </div>
                         )}
@@ -951,7 +951,7 @@ function NewAppointmentForm({
       created_by: userId,
     }).select("id, full_name").single();
     if (error || !data) {
-      toast.error("Não foi possível cadastrar paciente: " + (error?.message || ""));
+      toast.error("Não foi possível registar paciente: " + (error?.message || ""));
       return { id: null, name };
     }
     return { id: data.id, name: data.full_name };
@@ -1107,8 +1107,8 @@ function NewAppointmentForm({
                 placeholder="Opcional" maxLength={40} />
             </div>
           </div>
-          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>}
-          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>}
+          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já registado</p>}
+          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será registado ao guardar</p>}
         </>
       ) : (
         <div>
@@ -1259,7 +1259,7 @@ function NewAppointmentForm({
         <Label htmlFor="notes">Notas (opcional)</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
       </div>
-      <Button type="submit" disabled={saving} className="w-full">{saving ? "Salvando…" : "Agendar"}</Button>
+      <Button type="submit" disabled={saving} className="w-full">{saving ? "A guardar…" : "Agendar"}</Button>
     </form>
   );
 }
@@ -1315,7 +1315,7 @@ function EditAppointmentForm({
     <form onSubmit={save} className="space-y-3">
       {!canEdit && (
         <div className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-          Você está a visualizar. Só o técnico responsável ou um admin pode editar.
+          Tu está a visualizar. Só o técnico responsável ou um admin pode editar.
         </div>
       )}
       {needsPatient ? (
@@ -1391,7 +1391,7 @@ function EditAppointmentForm({
 
       <div className="flex gap-2">
         <Button type="button" variant="outline" onClick={onCancel} className="flex-1">Fechar</Button>
-        {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "Salvando…" : "Salvar alterações"}</Button>}
+        {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "A guardar…" : "Guardar alterações"}</Button>}
       </div>
     </form>
   );

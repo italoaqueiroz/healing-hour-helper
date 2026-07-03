@@ -221,7 +221,7 @@ function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="mt-10 text-center text-muted-foreground">Carregando…</div>
+          <div className="mt-10 text-center text-muted-foreground">A carregar…</div>
         ) : byPatient.length === 0 ? (
           <Card className="mt-6 p-8 text-center text-muted-foreground">
             <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />

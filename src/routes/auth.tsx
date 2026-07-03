@@ -42,7 +42,7 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin, data: { full_name: fullName } },
         });
         if (error) throw error;
-        toast.success("Conta criada! Você já está logado.");
+        toast.success("Conta criada! Tu já está logado.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -97,7 +97,7 @@ function AuthPage() {
             <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} maxLength={72} />
           </div>
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Carregando..." : mode === "signin" ? "Entrar" : "Criar conta"}
+            {loading ? "A carregar..." : mode === "signin" ? "Entrar" : "Criar conta"}
           </Button>
         </form>
 
