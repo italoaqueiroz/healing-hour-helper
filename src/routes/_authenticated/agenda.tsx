@@ -831,7 +831,19 @@ function GridView({
             );
           })}
         </div>
+        {showNowLine && (
+          <div className="pointer-events-none absolute left-0 right-0 z-20"
+            style={{ top: 56 + nowTop }}>
+            <div className="relative h-0 border-t-2 border-[hsl(var(--destructive))]">
+              <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-[hsl(var(--destructive))] shadow" />
+              <div className="absolute right-1 -top-4 rounded bg-[hsl(var(--destructive))] px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                {format(now, "HH:mm")}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
     </div>
   );
 }
