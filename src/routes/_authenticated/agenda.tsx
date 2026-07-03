@@ -300,10 +300,18 @@ function AgendaPage() {
               <div className="text-xs text-muted-foreground -mt-0.5">Agenda terapêutica</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link to="/relatorios" className="hidden sm:inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1">
-              <FileText className="h-4 w-4" />Relatórios
+          <div className="flex items-center gap-1 sm:gap-3">
+            <Link to="/contactos" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
+              <Users className="h-4 w-4" /><span className="hidden sm:inline">Contactos</span>
             </Link>
+            <Link to="/relatorios" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
+              <FileText className="h-4 w-4" /><span className="hidden sm:inline">Relatórios</span>
+            </Link>
+            <Button size="sm" variant="ghost" onClick={() => runGoogleSync(false)} disabled={syncing}
+              title={lastSync ? `Última sincronização: ${format(lastSync, "HH:mm")}` : "Sincronizar Google Calendar"}>
+              <RefreshCw className={`h-4 w-4 sm:mr-1 ${syncing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Google</span>
+            </Button>
             {isAdmin && (
               <Badge className="bg-primary text-primary-foreground gap-1">
                 <Crown className="h-3 w-3" />Admin
