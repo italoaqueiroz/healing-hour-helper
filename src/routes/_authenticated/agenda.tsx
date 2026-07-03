@@ -203,7 +203,7 @@ function AgendaPage() {
     const { data, error } = await supabase.rpc("claim_admin");
     if (error || !data) return toast.error("Não foi possível reivindicar admin");
     setIsAdmin(true); setAdminExists(true);
-    toast.success("Agora você é administrador");
+    toast.success("És agora administrador");
   }
 
   function canEdit(a: Appointment) {
