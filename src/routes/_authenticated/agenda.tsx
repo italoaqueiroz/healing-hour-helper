@@ -96,6 +96,36 @@ function AgendaPage() {
   const [view, setView] = useState<"colunas" | "grade">("grade");
   const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
+  const [googleEvents, setGoogleEvents] = useState<SyncedGoogleEvent[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+  const syncGoogle = useServerFn(fetchGoogleCalendarDay);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function runGoogleSync(silent = false) {
+    setSyncing(true);
+    try {
+      const res = await syncGoogle({ data: { dayISO: day.toISOString() } });
+      if (res.error) {
+        if (!silent) toast.error(res.error);
+        setGoogleEvents([]);
+      } else {
+        setGoogleEvents(res.events);
+        setLastSync(new Date());
+        if (!silent) toast.success(`${res.events.length} evento(s) do Google carregado(s)`);
+      }
+    } catch {
+      if (!silent) toast.error("Falha na sincronização com o Google");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
 
   function openCreateAt(roomId: string, hour: number) {
     setPrefill({ roomId, hour });
