@@ -146,22 +146,29 @@ function ReportsPage() {
 
     const body = appts
       .slice()
-      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+      .sort((a, b) => {
+        const ta = a.profiles?.full_name || a.profiles?.email || "";
+        const tb = b.profiles?.full_name || b.profiles?.email || "";
+        const cmp = ta.localeCompare(tb, "pt");
+        if (cmp !== 0) return cmp;
+        return a.starts_at.localeCompare(b.starts_at);
+      })
       .map((a) => [
         format(parseISO(a.starts_at), "dd/MM"),
         format(parseISO(a.starts_at), "HH:mm"),
         a.patient_name,
+        a.patients?.registration_number || "—",
         a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "—",
         sigla(effective(a.attendance_status, a.ends_at)),
       ]);
 
     autoTable(doc, {
       startY: 134,
-      head: [["Data", "Hora", "Paciente", "Terapeuta", "Status"]],
+      head: [["Data", "Hora", "Paciente", "Nº", "Terapeuta", "Estado"]],
       body,
       styles: { fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: [139, 46, 46] },
-      columnStyles: { 4: { halign: "center", fontStyle: "bold" } },
+      columnStyles: { 3: { halign: "center" }, 5: { halign: "center", fontStyle: "bold" } },
     });
 
     const file = `presencas_${format(month, "yyyy-MM")}_${therapistName.replace(/\s+/g, "_")}.pdf`;
