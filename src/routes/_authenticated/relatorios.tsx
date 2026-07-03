@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { pt } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +30,7 @@ type Appt = {
   ends_at: string;
   attendance_status: Status;
   profiles?: { full_name: string | null; email: string | null } | null;
+  patients?: { registration_number: string | null } | null;
 };
 
 function sigla(s: Status): string {
@@ -82,7 +83,7 @@ function ReportsPage() {
     const end = endOfMonth(month).toISOString();
     let q = supabase
       .from("appointments")
-      .select("id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email)")
+      .select("id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)")
       .gte("starts_at", start).lte("starts_at", end)
       .order("starts_at");
     // Non-admin sees only own (RLS allows view-all of authenticated, but filter UX-wise)
@@ -133,7 +134,7 @@ function ReportsPage() {
     doc.setFont("helvetica", "bold"); doc.setFontSize(16);
     doc.text("O Fio de Ariana — Relatório mensal de presenças", 40, 50);
     doc.setFont("helvetica", "normal"); doc.setFontSize(11);
-    doc.text(`${format(month, "MMMM 'de' yyyy", { locale: ptBR })}`, 40, 70);
+    doc.text(`${format(month, "MMMM 'de' yyyy", { locale: pt })}`, 40, 70);
     doc.text(`Terapeuta: ${therapistName}`, 40, 86);
     doc.text(
       `Total: ${summary.total}   |   P: ${summary.P}   FT: ${summary.FT}   FI: ${summary.FI}   FJ: ${summary.FJ}   Cancelados: ${summary.C}`,
@@ -145,22 +146,29 @@ function ReportsPage() {
 
     const body = appts
       .slice()
-      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+      .sort((a, b) => {
+        const ta = a.profiles?.full_name || a.profiles?.email || "";
+        const tb = b.profiles?.full_name || b.profiles?.email || "";
+        const cmp = ta.localeCompare(tb, "pt");
+        if (cmp !== 0) return cmp;
+        return a.starts_at.localeCompare(b.starts_at);
+      })
       .map((a) => [
         format(parseISO(a.starts_at), "dd/MM"),
         format(parseISO(a.starts_at), "HH:mm"),
         a.patient_name,
+        a.patients?.registration_number || "—",
         a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "—",
         sigla(effective(a.attendance_status, a.ends_at)),
       ]);
 
     autoTable(doc, {
       startY: 134,
-      head: [["Data", "Hora", "Paciente", "Terapeuta", "Status"]],
+      head: [["Data", "Hora", "Paciente", "Nº", "Terapeuta", "Estado"]],
       body,
       styles: { fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: [139, 46, 46] },
-      columnStyles: { 4: { halign: "center", fontStyle: "bold" } },
+      columnStyles: { 3: { halign: "center" }, 5: { halign: "center", fontStyle: "bold" } },
     });
 
     const file = `presencas_${format(month, "yyyy-MM")}_${therapistName.replace(/\s+/g, "_")}.pdf`;
@@ -181,9 +189,12 @@ function ReportsPage() {
               <div className="text-xs text-muted-foreground -mt-0.5">Folha de presenças</div>
             </div>
           </div>
-          <Button onClick={downloadPdf} disabled={appts.length === 0}>
-            <Download className="h-4 w-4 mr-1.5" />PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/contactos" className="text-sm text-muted-foreground hover:text-foreground hidden sm:inline">Contactos</Link>
+            <Button onClick={downloadPdf} disabled={appts.length === 0}>
+              <Download className="h-4 w-4 mr-1.5" />PDF
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -221,7 +232,7 @@ function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="mt-10 text-center text-muted-foreground">Carregando…</div>
+          <div className="mt-10 text-center text-muted-foreground">A carregar…</div>
         ) : byPatient.length === 0 ? (
           <Card className="mt-6 p-8 text-center text-muted-foreground">
             <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />

@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { pt } from "date-fns/locale";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchGoogleCalendarDay, type SyncedGoogleEvent } from "@/lib/google-calendar.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +20,7 @@ import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
   User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
-  BellRing,
+  BellRing, RefreshCw, Users,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
@@ -94,6 +96,36 @@ function AgendaPage() {
   const [view, setView] = useState<"colunas" | "grade">("grade");
   const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
+  const [googleEvents, setGoogleEvents] = useState<SyncedGoogleEvent[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+  const syncGoogle = useServerFn(fetchGoogleCalendarDay);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function runGoogleSync(silent = false) {
+    setSyncing(true);
+    try {
+      const res = await syncGoogle({ data: { dayISO: day.toISOString() } });
+      if (res.error) {
+        if (!silent) toast.error(res.error);
+        setGoogleEvents([]);
+      } else {
+        setGoogleEvents(res.events);
+        setLastSync(new Date());
+        if (!silent) toast.success(`${res.events.length} evento(s) do Google carregado(s)`);
+      }
+    } catch {
+      if (!silent) toast.error("Falha na sincronização com o Google");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
 
   function openCreateAt(roomId: string, hour: number) {
     setPrefill({ roomId, hour });
@@ -165,13 +197,13 @@ function AgendaPage() {
     setLoading(false);
   }
 
-  useEffect(() => { loadAppts(day); }, [day]);
+  useEffect(() => { loadAppts(day); runGoogleSync(true); }, [day]);
 
   async function claimAdmin() {
     const { data, error } = await supabase.rpc("claim_admin");
     if (error || !data) return toast.error("Não foi possível reivindicar admin");
     setIsAdmin(true); setAdminExists(true);
-    toast.success("Agora você é administrador");
+    toast.success("És agora administrador");
   }
 
   function canEdit(a: Appointment) {
@@ -187,7 +219,7 @@ function AgendaPage() {
       .update({ check_in_at: newVal, check_in_by: newBy }).eq("id", a.id);
     if (error) {
       setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
-      return toast.error("Não foi possível registrar check-in");
+      return toast.error("Não foi possível registar check-in");
     }
     toast.success(checking ? `${eventLabel(a)} marcado como presente na recepção` : "Check-in removido");
   }
@@ -203,23 +235,23 @@ function AgendaPage() {
     if (error) {
       setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: previous } : x));
       toast.error("Não foi possível atualizar");
-    } else toast.success(statusLabel(status) + " registrado");
+    } else toast.success(statusLabel(status) + " registado");
   }
 
   async function deleteAppt(a: Appointment) {
     if (!canEdit(a)) return;
-    if (!confirm(`Excluir "${eventLabel(a)}"?`)) return;
+    if (!confirm(`Eliminar "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("id", a.id);
-    if (error) return toast.error("Falha ao excluir.");
+    if (error) return toast.error("Falha ao eliminar.");
     setAppts((cur) => cur.filter((x) => x.id !== a.id));
     toast.success("Removido");
   }
 
   async function deleteSeries(a: Appointment) {
     if (!a.recurrence_group_id || !canEdit(a)) return;
-    if (!confirm(`Excluir toda a série recorrente de "${eventLabel(a)}"?`)) return;
+    if (!confirm(`Eliminar toda a série recorrente de "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("recurrence_group_id", a.recurrence_group_id);
-    if (error) return toast.error("Falha ao excluir a série.");
+    if (error) return toast.error("Falha ao eliminar a série.");
     setAppts((cur) => cur.filter((x) => x.recurrence_group_id !== a.recurrence_group_id));
     toast.success("Série removida");
   }
@@ -268,10 +300,18 @@ function AgendaPage() {
               <div className="text-xs text-muted-foreground -mt-0.5">Agenda terapêutica</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link to="/relatorios" className="hidden sm:inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1">
-              <FileText className="h-4 w-4" />Relatórios
+          <div className="flex items-center gap-1 sm:gap-3">
+            <Link to="/contactos" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
+              <Users className="h-4 w-4" /><span className="hidden sm:inline">Contactos</span>
             </Link>
+            <Link to="/relatorios" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
+              <FileText className="h-4 w-4" /><span className="hidden sm:inline">Relatórios</span>
+            </Link>
+            <Button size="sm" variant="ghost" onClick={() => runGoogleSync(false)} disabled={syncing}
+              title={lastSync ? `Última sincronização: ${format(lastSync, "HH:mm")}` : "Sincronizar Google Calendar"}>
+              <RefreshCw className={`h-4 w-4 sm:mr-1 ${syncing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Google</span>
+            </Button>
             {isAdmin && (
               <Badge className="bg-primary text-primary-foreground gap-1">
                 <Crown className="h-3 w-3" />Admin
@@ -303,10 +343,10 @@ function AgendaPage() {
                   <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                   <div className="text-left leading-tight">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {format(day, "EEEE", { locale: ptBR })}
+                      {format(day, "EEEE", { locale: pt })}
                     </div>
                     <div className="font-display text-base sm:text-lg">
-                      {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
+                      {format(day, "d 'de' MMMM, yyyy", { locale: pt })}
                     </div>
                   </div>
                 </Button>
@@ -319,7 +359,7 @@ function AgendaPage() {
                     <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, 1))}>+1 mês</Button>
                   </div>
                 </div>
-                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={pt} initialFocus className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
             <div className="flex items-center gap-1">
@@ -362,7 +402,7 @@ function AgendaPage() {
         </div>
 
         {loading ? (
-          <div className="mt-10 text-center text-muted-foreground">Carregando agenda…</div>
+          <div className="mt-10 text-center text-muted-foreground">A carregar agenda…</div>
         ) : view === "colunas" ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {rooms.map((room) => (
@@ -381,7 +421,7 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} googleEvents={googleEvents} />
         )}
       </main>
 
@@ -541,7 +581,7 @@ function AppointmentCard({
         {canEdit && (
           <div className="ml-auto flex gap-1">
             {a.recurrence_group_id && (
-              <Button size="sm" variant="ghost" title="Excluir toda a série"
+              <Button size="sm" variant="ghost" title="Eliminar toda a série"
                 onClick={() => onDeleteSeries(a)}
                 className="text-muted-foreground hover:text-destructive">
                 <RotateCw className="h-3.5 w-3.5" />
@@ -594,6 +634,7 @@ function layoutLanes(items: Appointment[]) {
 
 function GridView({
   rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
+  now, day, googleEvents,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
@@ -604,6 +645,9 @@ function GridView({
   onCreateAt: (roomId: string, hour: number) => void;
   onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
   onOpen: (a: Appointment) => void;
+  now: Date;
+  day: Date;
+  googleEvents: SyncedGoogleEvent[];
 }) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
@@ -616,10 +660,34 @@ function GridView({
   }, [rooms, appts]);
 
   const totalHeight = TOTAL_MINUTES * PX_PER_MIN;
+  const isToday = isSameDay(now, day);
+  const nowMin = (now.getHours() - GRID_START_HOUR) * 60 + now.getMinutes();
+  const showNowLine = isToday && nowMin >= 0 && nowMin <= TOTAL_MINUTES;
+  const nowTop = nowMin * PX_PER_MIN;
 
   return (
-    <div className="mt-6 overflow-auto rounded-lg border border-border bg-card">
-      <div className="flex min-w-max">
+    <div className="mt-6 space-y-3">
+      {googleEvents.length > 0 && (
+        <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <RefreshCw className="h-3 w-3" />Google Calendar · {googleEvents.length} evento(s) do dia
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {googleEvents.map((g) => (
+              <a key={g.id} href={g.htmlLink || "#"} target="_blank" rel="noreferrer"
+                title={g.description || g.title}
+                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[11px] hover:bg-primary/10">
+                <span className="font-medium">{g.title}</span>
+                <span className="text-muted-foreground">
+                  {g.all_day ? "todo o dia" : `${format(parseISO(g.starts_at), "HH:mm")}–${format(parseISO(g.ends_at), "HH:mm")}`}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    <div className="overflow-auto rounded-lg border border-border bg-card">
+      <div className="flex min-w-max relative">
         {/* Hour gutter */}
         <div className="shrink-0 border-r border-border bg-secondary/40">
           <div className="h-14 border-b border-border" />
@@ -691,19 +759,22 @@ function GridView({
                     const eff = effectiveStatus(a);
                     const color = a.profiles?.color || undefined;
                     const compact = height < 44;
+                    const isPast = endD.getTime() < now.getTime();
                     return (
                       <div key={a.id}
                         draggable={canEdit(a)}
                         onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); }}
                         onClick={(e) => { e.stopPropagation(); if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
-                        className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-[11px] shadow-sm border-l-[3px] hover:ring-1 hover:ring-primary/40 ${canEdit(a) ? "cursor-pointer" : "cursor-pointer"} ${
+                        className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-[11px] shadow-sm border-l-[3px] hover:ring-1 hover:ring-primary/40 cursor-pointer ${
                           cancelled
                             ? "border border-dashed border-muted-foreground/40 bg-muted/40 opacity-60"
-                            : "border border-border bg-background"
+                            : isPast
+                              ? "border border-border bg-muted/40 grayscale opacity-70"
+                              : "border border-border bg-background"
                         }`}
                         style={{
                           top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
-                          ...(cancelled ? {} : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
+                          ...(cancelled || isPast ? { borderLeftColor: color } : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
                         }}
                         title={`${format(startD, "HH:mm")}–${format(endD, "HH:mm")} · ${eventLabel(a)}`}
                       >
@@ -747,7 +818,7 @@ function GridView({
                             ))}
                             <button title="Cancelar" onClick={(e) => { e.stopPropagation(); onMark(a, "cancelled"); }}
                               className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
-                            <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
+                            <button title="Eliminar" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
                               className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                           </div>
                         )}
@@ -763,7 +834,19 @@ function GridView({
             );
           })}
         </div>
+        {showNowLine && (
+          <div className="pointer-events-none absolute left-0 right-0 z-20"
+            style={{ top: 56 + nowTop }}>
+            <div className="relative h-0 border-t-2 border-[hsl(var(--destructive))]">
+              <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-[hsl(var(--destructive))] shadow" />
+              <div className="absolute right-1 -top-4 rounded bg-[hsl(var(--destructive))] px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                {format(now, "HH:mm")}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
     </div>
   );
 }
@@ -868,7 +951,7 @@ function NewAppointmentForm({
       created_by: userId,
     }).select("id, full_name").single();
     if (error || !data) {
-      toast.error("Não foi possível cadastrar paciente: " + (error?.message || ""));
+      toast.error("Não foi possível registar paciente: " + (error?.message || ""));
       return { id: null, name };
     }
     return { id: data.id, name: data.full_name };
@@ -1024,8 +1107,8 @@ function NewAppointmentForm({
                 placeholder="Opcional" maxLength={40} />
             </div>
           </div>
-          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já cadastrado</p>}
-          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será cadastrado ao salvar</p>}
+          {patientId && <p className="text-xs text-muted-foreground">✓ Paciente já registado</p>}
+          {!patientId && patientQuery.trim() && <p className="text-xs text-muted-foreground">+ Novo paciente será registado ao guardar</p>}
         </>
       ) : (
         <div>
@@ -1176,7 +1259,7 @@ function NewAppointmentForm({
         <Label htmlFor="notes">Notas (opcional)</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
       </div>
-      <Button type="submit" disabled={saving} className="w-full">{saving ? "Salvando…" : "Agendar"}</Button>
+      <Button type="submit" disabled={saving} className="w-full">{saving ? "A guardar…" : "Agendar"}</Button>
     </form>
   );
 }
@@ -1232,7 +1315,7 @@ function EditAppointmentForm({
     <form onSubmit={save} className="space-y-3">
       {!canEdit && (
         <div className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-          Você está a visualizar. Só o técnico responsável ou um admin pode editar.
+          Tu está a visualizar. Só o técnico responsável ou um admin pode editar.
         </div>
       )}
       {needsPatient ? (
@@ -1308,7 +1391,7 @@ function EditAppointmentForm({
 
       <div className="flex gap-2">
         <Button type="button" variant="outline" onClick={onCancel} className="flex-1">Fechar</Button>
-        {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "Salvando…" : "Salvar alterações"}</Button>}
+        {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "A guardar…" : "Guardar alterações"}</Button>}
       </div>
     </form>
   );
