@@ -189,9 +189,12 @@ function ReportsPage() {
               <div className="text-xs text-muted-foreground -mt-0.5">Folha de presenças</div>
             </div>
           </div>
-          <Button onClick={downloadPdf} disabled={appts.length === 0}>
-            <Download className="h-4 w-4 mr-1.5" />PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/contactos" className="text-sm text-muted-foreground hover:text-foreground hidden sm:inline">Contactos</Link>
+            <Button onClick={downloadPdf} disabled={appts.length === 0}>
+              <Download className="h-4 w-4 mr-1.5" />PDF
+            </Button>
+          </div>
         </div>
       </header>
 
