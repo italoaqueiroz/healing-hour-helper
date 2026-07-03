@@ -305,10 +305,10 @@ function AgendaPage() {
                   <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                   <div className="text-left leading-tight">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {format(day, "EEEE", { locale: ptBR })}
+                      {format(day, "EEEE", { locale: pt })}
                     </div>
                     <div className="font-display text-base sm:text-lg">
-                      {format(day, "d 'de' MMMM, yyyy", { locale: ptBR })}
+                      {format(day, "d 'de' MMMM, yyyy", { locale: pt })}
                     </div>
                   </div>
                 </Button>
@@ -321,7 +321,7 @@ function AgendaPage() {
                     <Button size="sm" variant="ghost" onClick={() => setDay(addMonths(day, 1))}>+1 mês</Button>
                   </div>
                 </div>
-                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+                <Calendar mode="single" selected={day} onSelect={(d) => d && setDay(startOfDay(d))} locale={pt} initialFocus className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
             <div className="flex items-center gap-1">
