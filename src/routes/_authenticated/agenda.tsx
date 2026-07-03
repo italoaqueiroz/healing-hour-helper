@@ -197,7 +197,7 @@ function AgendaPage() {
     setLoading(false);
   }
 
-  useEffect(() => { loadAppts(day); }, [day]);
+  useEffect(() => { loadAppts(day); runGoogleSync(true); }, [day]);
 
   async function claimAdmin() {
     const { data, error } = await supabase.rpc("claim_admin");
