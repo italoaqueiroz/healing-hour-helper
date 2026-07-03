@@ -634,6 +634,7 @@ function layoutLanes(items: Appointment[]) {
 
 function GridView({
   rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
+  now, day, googleEvents,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
@@ -644,6 +645,9 @@ function GridView({
   onCreateAt: (roomId: string, hour: number) => void;
   onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
   onOpen: (a: Appointment) => void;
+  now: Date;
+  day: Date;
+  googleEvents: SyncedGoogleEvent[];
 }) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
