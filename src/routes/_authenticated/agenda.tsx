@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { pt } from "date-fns/locale";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchGoogleCalendarDay, type SyncedGoogleEvent } from "@/lib/google-calendar.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +20,7 @@ import { toast } from "sonner";
 import {
   CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
   User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
-  BellRing,
+  BellRing, RefreshCw, Users,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
