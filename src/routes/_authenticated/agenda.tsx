@@ -759,19 +759,22 @@ function GridView({
                     const eff = effectiveStatus(a);
                     const color = a.profiles?.color || undefined;
                     const compact = height < 44;
+                    const isPast = endD.getTime() < now.getTime();
                     return (
                       <div key={a.id}
                         draggable={canEdit(a)}
                         onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); }}
                         onClick={(e) => { e.stopPropagation(); if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
-                        className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-[11px] shadow-sm border-l-[3px] hover:ring-1 hover:ring-primary/40 ${canEdit(a) ? "cursor-pointer" : "cursor-pointer"} ${
+                        className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-[11px] shadow-sm border-l-[3px] hover:ring-1 hover:ring-primary/40 cursor-pointer ${
                           cancelled
                             ? "border border-dashed border-muted-foreground/40 bg-muted/40 opacity-60"
-                            : "border border-border bg-background"
+                            : isPast
+                              ? "border border-border bg-muted/40 grayscale opacity-70"
+                              : "border border-border bg-background"
                         }`}
                         style={{
                           top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
-                          ...(cancelled ? {} : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
+                          ...(cancelled || isPast ? { borderLeftColor: color } : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
                         }}
                         title={`${format(startD, "HH:mm")}–${format(endD, "HH:mm")} · ${eventLabel(a)}`}
                       >
