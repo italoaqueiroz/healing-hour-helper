@@ -83,7 +83,7 @@ function ReportsPage() {
     const end = endOfMonth(month).toISOString();
     let q = supabase
       .from("appointments")
-      .select("id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email)")
+      .select("id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)")
       .gte("starts_at", start).lte("starts_at", end)
       .order("starts_at");
     // Non-admin sees only own (RLS allows view-all of authenticated, but filter UX-wise)
