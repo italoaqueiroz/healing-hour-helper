@@ -660,10 +660,34 @@ function GridView({
   }, [rooms, appts]);
 
   const totalHeight = TOTAL_MINUTES * PX_PER_MIN;
+  const isToday = isSameDay(now, day);
+  const nowMin = (now.getHours() - GRID_START_HOUR) * 60 + now.getMinutes();
+  const showNowLine = isToday && nowMin >= 0 && nowMin <= TOTAL_MINUTES;
+  const nowTop = nowMin * PX_PER_MIN;
 
   return (
-    <div className="mt-6 overflow-auto rounded-lg border border-border bg-card">
-      <div className="flex min-w-max">
+    <div className="mt-6 space-y-3">
+      {googleEvents.length > 0 && (
+        <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <RefreshCw className="h-3 w-3" />Google Calendar · {googleEvents.length} evento(s) do dia
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {googleEvents.map((g) => (
+              <a key={g.id} href={g.htmlLink || "#"} target="_blank" rel="noreferrer"
+                title={g.description || g.title}
+                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[11px] hover:bg-primary/10">
+                <span className="font-medium">{g.title}</span>
+                <span className="text-muted-foreground">
+                  {g.all_day ? "todo o dia" : `${format(parseISO(g.starts_at), "HH:mm")}–${format(parseISO(g.ends_at), "HH:mm")}`}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    <div className="overflow-auto rounded-lg border border-border bg-card">
+      <div className="flex min-w-max relative">
         {/* Hour gutter */}
         <div className="shrink-0 border-r border-border bg-secondary/40">
           <div className="h-14 border-b border-border" />
