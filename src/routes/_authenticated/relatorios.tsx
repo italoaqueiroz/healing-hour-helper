@@ -30,6 +30,7 @@ type Appt = {
   ends_at: string;
   attendance_status: Status;
   profiles?: { full_name: string | null; email: string | null } | null;
+  patients?: { registration_number: string | null } | null;
 };
 
 function sigla(s: Status): string {
