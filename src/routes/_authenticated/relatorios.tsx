@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { pt } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -134,7 +134,7 @@ function ReportsPage() {
     doc.setFont("helvetica", "bold"); doc.setFontSize(16);
     doc.text("O Fio de Ariana — Relatório mensal de presenças", 40, 50);
     doc.setFont("helvetica", "normal"); doc.setFontSize(11);
-    doc.text(`${format(month, "MMMM 'de' yyyy", { locale: ptBR })}`, 40, 70);
+    doc.text(`${format(month, "MMMM 'de' yyyy", { locale: pt })}`, 40, 70);
     doc.text(`Terapeuta: ${therapistName}`, 40, 86);
     doc.text(
       `Total: ${summary.total}   |   P: ${summary.P}   FT: ${summary.FT}   FI: ${summary.FI}   FJ: ${summary.FJ}   Cancelados: ${summary.C}`,
