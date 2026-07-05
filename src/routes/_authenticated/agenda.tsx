@@ -138,11 +138,6 @@ function AgendaPage() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       setUserId(data.user.id);
-      setUserName(
-        (data.user.user_metadata?.full_name as string) ||
-        (data.user.user_metadata?.name as string) ||
-        data.user.email?.split("@")[0] || "Terapeuta"
-      );
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
       setIsAdmin(!!roles?.some((r) => r.role === "admin"));
       const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "admin");
@@ -150,13 +145,16 @@ function AgendaPage() {
     });
   }, []);
 
+  async function loadProfiles() {
+    const { data } = await supabase.from("profiles").select("id, full_name, email, color, default_session_minutes");
+    if (data) setProfiles(data as Profile[]);
+  }
+
   useEffect(() => {
     supabase.from("rooms").select("*").order("position").then(({ data }) => {
       if (data) setRooms(data as Room[]);
     });
-    supabase.from("profiles").select("id, full_name, email, color").then(({ data }) => {
-      if (data) setProfiles(data as Profile[]);
-    });
+    loadProfiles();
     loadPatients();
   }, []);
 
@@ -180,7 +178,17 @@ function AgendaPage() {
     setLoading(false);
   }
 
-  useEffect(() => { loadAppts(day); runGoogleSync(true); }, [day]);
+  async function loadUnavail(d: Date) {
+    const start = startOfDay(d).toISOString();
+    const end = addDays(startOfDay(d), 1).toISOString();
+    const { data } = await supabase.from("therapist_unavailability")
+      .select("id, therapist_id, starts_at, ends_at, reason")
+      .lt("starts_at", end).gt("ends_at", start);
+    setUnavail((data as Unavail[]) || []);
+  }
+
+  useEffect(() => { loadAppts(day); loadUnavail(day); }, [day]);
+
 
   async function claimAdmin() {
     const { data, error } = await supabase.rpc("claim_admin");
