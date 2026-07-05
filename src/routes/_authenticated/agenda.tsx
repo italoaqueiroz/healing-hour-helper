@@ -1,10 +1,8 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
+import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, addMonths } from "date-fns";
 import { pt } from "date-fns/locale";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchGoogleCalendarDay, type SyncedGoogleEvent } from "@/lib/google-calendar.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,10 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
+import { AppShell } from "@/components/app-shell";
 import {
-  CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
-  BellRing, RefreshCw, Users,
+  ChevronLeft, ChevronRight, Plus, RotateCw, Trash2,
+  Crown, LayoutGrid, Rows3, Star, Ban, CalendarIcon,
+  BellRing, Clock, Settings2,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
