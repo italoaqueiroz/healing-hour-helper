@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ChevronLeft, Phone, Search, Trash2, UserPlus, Pencil } from "lucide-react";
+import { Phone, Search, Trash2, UserPlus, Pencil } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated/contactos")({
   head: () => ({ meta: [{ title: "Contactos · O Fio de Ariana" }] }),
