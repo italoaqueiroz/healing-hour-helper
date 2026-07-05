@@ -729,17 +729,6 @@ function GridView({
                 style={{ top: i * 60 * PX_PER_MIN - 6, width: 56 }}>
                 {String(h).padStart(2, "0")}:00
               </div>
-    <div className="overflow-auto rounded-lg border border-border bg-card">
-      <div className="flex min-w-max relative">
-        {/* Hour gutter */}
-        <div className="shrink-0 border-r border-border bg-secondary/40">
-          <div className="h-14 border-b border-border" />
-          <div className="relative" style={{ height: totalHeight }}>
-            {HOURS.map((h, i) => (
-              <div key={h} className="absolute left-0 right-0 flex items-start justify-end pr-2 text-[11px] font-medium text-muted-foreground"
-                style={{ top: i * 60 * PX_PER_MIN - 6, width: 56 }}>
-                {String(h).padStart(2, "0")}:00
-              </div>
             ))}
           </div>
         </div>
