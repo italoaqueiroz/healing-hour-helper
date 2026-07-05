@@ -557,6 +557,7 @@ function AppointmentCard({
   const isSession = a.event_type === "session";
   const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
   const checkedIn = !!a.check_in_at;
+  const strikeInfo = strikeStyleFor(a.attendance_status);
   return (
     <div
       onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
@@ -566,7 +567,11 @@ function AppointmentCard({
         : highlighted
           ? "border border-primary/30 bg-accent/20"
           : "border border-border bg-background"
-    }`} style={!cancelled ? { borderLeftColor: color } : undefined}>
+    } ${strikeInfo ? "status-strike" : ""}`}
+      style={{
+        ...(cancelled ? {} : { borderLeftColor: color }),
+        ...(strikeInfo ? { ["--strike-color" as string]: strikeInfo.color } : {}),
+      }}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className={`font-medium truncate flex items-center gap-1.5 ${cancelled ? "line-through" : ""}`}>
@@ -593,7 +598,7 @@ function AppointmentCard({
           <Button size="sm" variant={checkedIn ? "default" : "outline"}
             onClick={() => onCheckIn(a)}
             className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
-            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na recepção"}>
+            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na receção"}>
             <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
           </Button>
         )}
@@ -607,11 +612,6 @@ function AppointmentCard({
             {opt.sigla}
           </Button>
         ))}
-        <Button size="sm" variant={cancelled ? "secondary" : "outline"}
-          disabled={!canEdit} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
-          title={cancelled ? "Reativar" : "Cancelar (libera o horário)"}>
-          <Ban className="h-3.5 w-3.5 mr-1" />{cancelled ? "Reativar" : "Cancelar"}
-        </Button>
         {canEdit && (
           <div className="ml-auto flex gap-1">
             {a.recurrence_group_id && (
@@ -629,6 +629,13 @@ function AppointmentCard({
       </div>
     </div>
   );
+}
+
+function strikeStyleFor(s: Status): { color: string } | null {
+  if (s === "absent_therapist") return { color: "var(--color-warning)" };
+  if (s === "absent_unjustified" || s === "absent") return { color: "var(--color-destructive)" };
+  if (s === "absent_justified") return { color: "var(--color-muted-foreground)" };
+  return null;
 }
 
 const PX_PER_MIN = 1; // 60px per hour
