@@ -506,7 +506,7 @@ function RoomColumn({
         <div className="mt-1 flex items-center gap-1.5 text-xs">
           <Star className="h-3 w-3" style={{ color: lead.color || undefined, fill: lead.color || undefined }} />
           <span className="font-medium" style={{ color: lead.color || undefined }}>{lead.name}</span>
-          <span className="text-muted-foreground">· {lead.count} sessão{lead.count > 1 ? "s" : ""} hoje</span>
+          <span className="text-muted-foreground">· {lead.count} {lead.count === 1 ? "sessão" : "sessões"} hoje</span>
         </div>
       ) : (
         <div className="mt-1 text-xs text-muted-foreground">Sala livre — clique em + para agendar</div>
