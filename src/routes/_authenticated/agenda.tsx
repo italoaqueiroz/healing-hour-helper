@@ -771,7 +771,19 @@ function GridView({
                     );
                   })}
 
-                  {/* Half-hour guide lines */}
+                  {/* Unavailability bands (per therapist, shown in every room column) */}
+                  {unavailBands.map((b) => (
+                    <div key={`unav-${b.u.id}-${r.id}`}
+                      title={`${b.name} indisponível ${format(parseISO(b.u.starts_at), "HH:mm")}–${format(parseISO(b.u.ends_at), "HH:mm")}${b.u.reason ? " · " + b.u.reason : ""}`}
+                      className="pointer-events-none absolute left-0 right-0 opacity-40"
+                      style={{
+                        top: b.top, height: b.height,
+                        background: `repeating-linear-gradient(45deg, ${b.color}33 0 6px, transparent 6px 12px)`,
+                        borderTop: `1px dashed ${b.color}`,
+                        borderBottom: `1px dashed ${b.color}`,
+                      }} />
+                  ))}
+
                   {HOURS.map((h, i) => (
                     <div key={`half-${h}`} className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-border/30"
                       style={{ top: (i * 60 + 30) * PX_PER_MIN }} />
