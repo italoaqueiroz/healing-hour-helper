@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
-type Profile = { id: string; full_name: string | null; email: string | null; color: string | null };
+type Profile = { id: string; full_name: string | null; email: string | null; color: string | null; default_session_minutes?: number | null };
 type Patient = { id: string; full_name: string; registration_number: string | null };
 type Status =
   | "pending" | "present" | "absent" | "rescheduled" | "cancelled"
