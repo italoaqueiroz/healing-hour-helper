@@ -306,13 +306,11 @@ function AgendaPage() {
                 rooms={rooms}
                 profiles={profiles}
                 patients={patients}
-                unavail={unavail}
-                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); loadUnavail(day); }}
                 defaultDay={day}
                 userId={userId}
                 isAdmin={isAdmin}
                 prefill={prefill}
-                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); }}
+                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); loadUnavail(day); }}
               />
             </DialogContent>
           </Dialog>
@@ -1439,5 +1437,118 @@ function EditAppointmentForm({
         {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "A guardar…" : "Guardar alterações"}</Button>}
       </div>
     </form>
+  );
+}
+
+function UnavailabilityForm({
+  profiles, userId, isAdmin, defaultDay, onSaved,
+}: {
+  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; onSaved: () => void;
+}) {
+  const [therapistId, setTherapistId] = useState(userId || "");
+  const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("13:00");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (!therapistId && userId) setTherapistId(userId); }, [userId]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
+    setSaving(true);
+    const { error } = await supabase.from("therapist_unavailability").insert({
+      therapist_id: isAdmin ? therapistId : (userId || ""),
+      starts_at: new Date(`${date}T${startTime}:00`).toISOString(),
+      ends_at: new Date(`${date}T${endTime}:00`).toISOString(),
+      reason: reason.trim() || null,
+      created_by: userId,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Indisponibilidade registada");
+    onSaved();
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div>
+        <Label>Terapeuta</Label>
+        <Select value={therapistId} onValueChange={setTherapistId} disabled={!isAdmin}>
+          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+          <SelectContent>
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                  {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="unav-date">Data</Label>
+        <Input id="unav-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="unav-start">Início</Label>
+          <Input id="unav-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+        </div>
+        <div>
+          <Label htmlFor="unav-end">Fim</Label>
+          <Input id="unav-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="unav-reason">Motivo (opcional)</Label>
+        <Input id="unav-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} placeholder="Ex.: consulta médica, formação…" />
+      </div>
+      <Button type="submit" disabled={saving} className="w-full">
+        {saving ? "A guardar…" : "Marcar indisponibilidade"}
+      </Button>
+    </form>
+  );
+}
+
+function DurationForm({ profile, onSaved }: { profile?: Profile; onSaved: () => void }) {
+  const [mins, setMins] = useState<number>(profile?.default_session_minutes ?? 60);
+  const [saving, setSaving] = useState(false);
+  if (!profile) return <div className="text-sm text-muted-foreground">Perfil não encontrado.</div>;
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.from("profiles").update({ default_session_minutes: mins }).eq("id", profile!.id);
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Duração atualizada");
+    onSaved();
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Ao criar um atendimento, a hora final é pré-preenchida com esta duração. Podes sempre alterar manualmente.
+      </p>
+      <div className="flex items-center gap-2">
+        {[45, 60, 75, 90].map((m) => (
+          <Button key={m} type="button" size="sm"
+            variant={mins === m ? "default" : "outline"} onClick={() => setMins(m)}>
+            {m} min
+          </Button>
+        ))}
+      </div>
+      <div>
+        <Label htmlFor="dur-custom">Personalizada (minutos)</Label>
+        <Input id="dur-custom" type="number" min={15} max={240} step={5}
+          value={mins} onChange={(e) => setMins(Math.max(15, Math.min(240, Number(e.target.value) || 60)))} />
+      </div>
+      <Button onClick={save} disabled={saving} className="w-full">
+        {saving ? "A guardar…" : "Guardar"}
+      </Button>
+    </div>
   );
 }
