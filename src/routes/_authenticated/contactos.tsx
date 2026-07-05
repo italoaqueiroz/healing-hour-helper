@@ -146,7 +146,7 @@ function ContactosPage() {
             </div>
           </Card>
         )}
-      </main>
+      </div>
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="max-w-md">
@@ -174,7 +174,7 @@ function ContactosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </AppShell>
   );
 }
 
