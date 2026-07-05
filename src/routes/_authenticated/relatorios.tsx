@@ -268,8 +268,8 @@ function ReportsPage() {
             </table>
           </Card>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 
