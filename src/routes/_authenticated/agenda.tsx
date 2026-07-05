@@ -307,6 +307,7 @@ function AgendaPage() {
                 profiles={profiles}
                 patients={patients}
                 unavail={unavail}
+                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); loadUnavail(day); }}
                 defaultDay={day}
                 userId={userId}
                 isAdmin={isAdmin}
