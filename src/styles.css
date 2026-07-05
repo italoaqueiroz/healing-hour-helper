@@ -115,11 +115,14 @@
 
 @layer base {
   * { border-color: var(--color-border); }
+  html, body { height: 100%; }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv11", "ss01";
     font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
   }
   p, span, div, button, a, li, td, th, label, input, textarea, select {
     font-weight: inherit;
@@ -129,4 +132,30 @@
     font-weight: 600;
     letter-spacing: -0.01em;
   }
+}
+
+/* Status "cut" animation for FT / FI / FJ cards */
+@keyframes strike-cut {
+  0%   { clip-path: inset(0 100% 0 0); opacity: 0; }
+  100% { clip-path: inset(0 0 0 0);    opacity: 1; }
+}
+.status-strike { position: relative; }
+.status-strike::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 50%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--strike-color, currentColor);
+  transform: translateY(-50%) rotate(-2deg);
+  animation: strike-cut 420ms ease-out forwards;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--strike-color, currentColor) 25%, transparent);
+}
+.status-strike > * {
+  text-decoration: line-through;
+  text-decoration-color: var(--strike-color, currentColor);
+  text-decoration-thickness: 2px;
 }
