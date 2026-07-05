@@ -674,11 +674,13 @@ function layoutLanes(items: Appointment[]) {
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
-  now, day, googleEvents,
+  rooms, appts, leadByRoom, unavail, profiles, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
+  now, day,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
+  unavail: Unavail[];
+  profiles: Profile[];
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
   onCheckIn: (a: Appointment) => void;
@@ -688,7 +690,6 @@ function GridView({
   onOpen: (a: Appointment) => void;
   now: Date;
   day: Date;
-  googleEvents: SyncedGoogleEvent[];
 }) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
@@ -706,27 +707,28 @@ function GridView({
   const showNowLine = isToday && nowMin >= 0 && nowMin <= TOTAL_MINUTES;
   const nowTop = nowMin * PX_PER_MIN;
 
+  const unavailBands = unavail.map((u) => {
+    const s = parseISO(u.starts_at);
+    const e = parseISO(u.ends_at);
+    const startMin = Math.max(0, (s.getHours() - GRID_START_HOUR) * 60 + s.getMinutes());
+    const endMin = Math.min(TOTAL_MINUTES, (e.getHours() - GRID_START_HOUR) * 60 + e.getMinutes());
+    const p = profiles.find((pp) => pp.id === u.therapist_id);
+    return { u, top: startMin * PX_PER_MIN, height: Math.max(8, (endMin - startMin) * PX_PER_MIN), color: p?.color || "#999", name: p?.full_name || "Terapeuta" };
+  });
+
   return (
-    <div className="mt-6 space-y-3">
-      {googleEvents.length > 0 && (
-        <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <RefreshCw className="h-3 w-3" />Google Calendar · {googleEvents.length} evento(s) do dia
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {googleEvents.map((g) => (
-              <a key={g.id} href={g.htmlLink || "#"} target="_blank" rel="noreferrer"
-                title={g.description || g.title}
-                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[11px] hover:bg-primary/10">
-                <span className="font-medium">{g.title}</span>
-                <span className="text-muted-foreground">
-                  {g.all_day ? "todo o dia" : `${format(parseISO(g.starts_at), "HH:mm")}–${format(parseISO(g.ends_at), "HH:mm")}`}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="mt-4 space-y-3">
+    <div className="overflow-auto rounded-lg border border-border bg-card">
+      <div className="flex min-w-max relative">
+        {/* Hour gutter */}
+        <div className="shrink-0 border-r border-border bg-secondary/40">
+          <div className="h-14 border-b border-border" />
+          <div className="relative" style={{ height: totalHeight }}>
+            {HOURS.map((h, i) => (
+              <div key={h} className="absolute left-0 right-0 flex items-start justify-end pr-2 text-[11px] font-medium text-muted-foreground"
+                style={{ top: i * 60 * PX_PER_MIN - 6, width: 56 }}>
+                {String(h).padStart(2, "0")}:00
+              </div>
     <div className="overflow-auto rounded-lg border border-border bg-card">
       <div className="flex min-w-max relative">
         {/* Hour gutter */}
