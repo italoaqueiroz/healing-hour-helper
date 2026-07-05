@@ -955,6 +955,19 @@ function NewAppointmentForm({
   useEffect(() => { if (rooms.length && !roomId) setRoomId(rooms[0].id); }, [rooms]);
   useEffect(() => { if (!therapistId && userId) setTherapistId(userId); }, [userId]);
 
+  // Auto-fill end time based on selected therapist's default_session_minutes
+  useEffect(() => {
+    const tid = therapistId || userId;
+    const prof = profiles.find((p) => p.id === tid);
+    const mins = prof?.default_session_minutes ?? 60;
+    const [h, m] = startTime.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return;
+    const total = h * 60 + m + mins;
+    const eh = Math.min(23, Math.floor(total / 60));
+    const em = total % 60;
+    setEndTime(`${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`);
+  }, [therapistId, startTime, profiles, userId]);
+
   const filteredPatients = useMemo(() => {
     const q = patientQuery.trim().toLowerCase();
     if (!q) return patients.slice(0, 8);
