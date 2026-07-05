@@ -80,33 +80,22 @@ function ContactosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
-            <Link to="/agenda" className="text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="h-5 w-5" />
-            </Link>
-            <div>
-              <div className="font-display text-lg leading-tight">Contactos</div>
-              <div className="text-xs text-muted-foreground -mt-0.5">Lista de pacientes</div>
-            </div>
-          </div>
-          <Dialog open={creating} onOpenChange={setCreating}>
-            <DialogTrigger asChild>
-              <Button size="sm"><UserPlus className="h-4 w-4 mr-1.5" />Novo</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Novo contacto</DialogTitle></DialogHeader>
-              <PatientForm
-                onSaved={() => { setCreating(false); load(); }}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
+    <AppShell
+      title="Contactos"
+      subtitle="Lista de pacientes"
+      actions={
+        <Dialog open={creating} onOpenChange={setCreating}>
+          <DialogTrigger asChild>
+            <Button size="sm"><UserPlus className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Novo</span></Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Novo contacto</DialogTitle></DialogHeader>
+            <PatientForm onSaved={() => { setCreating(false); load(); }} />
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5">{void navigate}
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)}
