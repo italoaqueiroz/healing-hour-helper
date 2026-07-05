@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -8,9 +8,10 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ChevronLeft, Download, FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios · O Fio de Ariana" }] }),
@@ -177,28 +178,16 @@ function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
-            <Link to="/agenda" className="text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="h-5 w-5" />
-            </Link>
-            <div>
-              <div className="font-display text-lg leading-tight">Relatórios mensais</div>
-              <div className="text-xs text-muted-foreground -mt-0.5">Folha de presenças</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/contactos" className="text-sm text-muted-foreground hover:text-foreground hidden sm:inline">Contactos</Link>
-            <Button onClick={downloadPdf} disabled={appts.length === 0}>
-              <Download className="h-4 w-4 mr-1.5" />PDF
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
+    <AppShell
+      title="Relatórios mensais"
+      subtitle="Folha de presenças"
+      actions={
+        <Button size="sm" onClick={downloadPdf} disabled={appts.length === 0}>
+          <Download className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">PDF</span>
+        </Button>
+      }
+    >
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5">{void navigate}
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground">Mês</label>
