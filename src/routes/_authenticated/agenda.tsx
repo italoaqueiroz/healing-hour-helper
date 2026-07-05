@@ -278,65 +278,62 @@ function AgendaPage() {
     return m;
   }, [rooms, apptsByRoom]);
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground">
-              <CalendarCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="font-display text-lg leading-tight">O Fio de Ariana</div>
-              <div className="text-xs text-muted-foreground -mt-0.5">Agenda terapêutica</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-3">
-            <Link to="/contactos" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
-              <Users className="h-4 w-4" /><span className="hidden sm:inline">Contactos</span>
-            </Link>
-            <Link to="/relatorios" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
-              <FileText className="h-4 w-4" /><span className="hidden sm:inline">Relatórios</span>
-            </Link>
-            <Button size="sm" variant="ghost" onClick={() => runGoogleSync(false)} disabled={syncing}
-              title={lastSync ? `Última sincronização: ${format(lastSync, "HH:mm")}` : "Sincronizar Google Calendar"}>
-              <RefreshCw className={`h-4 w-4 sm:mr-1 ${syncing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Google</span>
-            </Button>
-            {isAdmin && (
-              <Badge className="bg-primary text-primary-foreground gap-1">
-                <Crown className="h-3 w-3" />Admin
-              </Badge>
-            )}
-            {adminExists === false && !isAdmin && (
-              <Button size="sm" variant="outline" onClick={claimAdmin}>
-                <Crown className="h-4 w-4 mr-1" />Tornar-me admin
-              </Button>
-            )}
-            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-              <UserIcon className="h-4 w-4" /> {userName}
-            </div>
-            <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" />Sair</Button>
-          </div>
-        </div>
-      </header>
+  const myProfile = profiles.find((p) => p.id === userId);
 
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+  return (
+    <AppShell
+      title="Agenda"
+      subtitle={format(day, "EEEE, d 'de' MMMM", { locale: pt })}
+      actions={
+        <>
+          {isAdmin && (
+            <Badge className="bg-primary text-primary-foreground gap-1 hidden sm:inline-flex">
+              <Crown className="h-3 w-3" />Admin
+            </Badge>
+          )}
+          {adminExists === false && !isAdmin && (
+            <Button size="sm" variant="outline" onClick={claimAdmin}>
+              <Crown className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Tornar-me admin</span>
+            </Button>
+          )}
+          <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Novo</span></Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle className="font-display text-2xl">Novo atendimento</DialogTitle></DialogHeader>
+              <NewAppointmentForm
+                rooms={rooms}
+                profiles={profiles}
+                patients={patients}
+                unavail={unavail}
+                defaultDay={day}
+                userId={userId}
+                isAdmin={isAdmin}
+                prefill={prefill}
+                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); }}
+              />
+            </DialogContent>
+          </Dialog>
+        </>
+      }
+    >
+      <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -7))} title="Semana anterior"><ChevronLeft className="h-4 w-4" /><ChevronLeft className="h-4 w-4 -ml-2.5" /></Button>
               <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))} title="Dia anterior"><ChevronLeft className="h-4 w-4" /></Button>
             </div>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="min-w-[210px] sm:min-w-[260px] justify-start gap-2 px-3">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-left leading-tight">
-                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                <Button variant="outline" className="min-w-[180px] sm:min-w-[240px] justify-start gap-2 px-2.5 sm:px-3">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="text-left leading-tight min-w-0">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground truncate">
                       {format(day, "EEEE", { locale: pt })}
                     </div>
-                    <div className="font-display text-base sm:text-lg">
+                    <div className="font-display text-sm sm:text-base truncate">
                       {format(day, "d 'de' MMMM, yyyy", { locale: pt })}
                     </div>
                   </div>
@@ -362,40 +359,63 @@ function AgendaPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button size="sm" variant="outline" onClick={() => setOpenUnavail(true)} title="Gerir indisponibilidades">
+              <Ban className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Indisponível</span>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpenDuration(true)} title="Duração padrão da minha sessão">
+              <Settings2 className="h-4 w-4" />
+            </Button>
             <div className="flex rounded-md border border-border p-0.5">
               <Button size="sm" variant={view === "colunas" ? "default" : "ghost"} onClick={() => setView("colunas")}>
-                <LayoutGrid className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Colunas</span>
+                <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button size="sm" variant={view === "grade" ? "default" : "ghost"} onClick={() => setView("grade")}>
-                <Rows3 className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Grade</span>
+                <Rows3 className="h-4 w-4" />
               </Button>
             </div>
-            <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
-              <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Novo atendimento</span></Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle className="font-display text-2xl">Novo atendimento</DialogTitle></DialogHeader>
-                <NewAppointmentForm
-                  rooms={rooms}
-                  profiles={profiles}
-                  patients={patients}
-                  defaultDay={day}
-                  userId={userId}
-                  isAdmin={isAdmin}
-                  prefill={prefill}
-                  onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); }}
-                />
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
+
+        {unavail.length > 0 && (
+          <div className="mt-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2">
+            <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <Ban className="h-3 w-3" />Indisponibilidades hoje · {unavail.length}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {unavail.map((u) => {
+                const p = profiles.find((x) => x.id === u.therapist_id);
+                return (
+                  <span key={u.id}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px]">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: p?.color || "#999" }} />
+                    <span className="font-medium">{p?.full_name || "Terapeuta"}</span>
+                    <span className="text-muted-foreground">
+                      {format(parseISO(u.starts_at), "HH:mm")}–{format(parseISO(u.ends_at), "HH:mm")}
+                    </span>
+                    {u.reason && <span className="text-muted-foreground italic">· {u.reason}</span>}
+                    {(isAdmin || u.therapist_id === userId) && (
+                      <button className="ml-1 text-muted-foreground hover:text-destructive"
+                        onClick={async () => {
+                          const { error } = await supabase.from("therapist_unavailability").delete().eq("id", u.id);
+                          if (error) return toast.error("Não foi possível remover");
+                          setUnavail((cur) => cur.filter((x) => x.id !== u.id));
+                          toast.success("Removido");
+                        }} title="Remover">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="mt-10 text-center text-muted-foreground">A carregar agenda…</div>
         ) : view === "colunas" ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {rooms.map((room) => (
               <RoomColumn
                 key={room.id} room={room}
@@ -412,9 +432,9 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} googleEvents={googleEvents} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} unavail={unavail} profiles={profiles} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} />
         )}
-      </main>
+      </div>
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -432,7 +452,30 @@ function AgendaPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+
+      <Dialog open={openUnavail} onOpenChange={setOpenUnavail}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Marcar indisponibilidade</DialogTitle></DialogHeader>
+          <UnavailabilityForm
+            profiles={profiles}
+            userId={userId}
+            isAdmin={isAdmin}
+            defaultDay={day}
+            onSaved={() => { setOpenUnavail(false); loadUnavail(day); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openDuration} onOpenChange={setOpenDuration}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Duração padrão da sessão</DialogTitle></DialogHeader>
+          <DurationForm
+            profile={myProfile}
+            onSaved={() => { setOpenDuration(false); loadProfiles(); }}
+          />
+        </DialogContent>
+      </Dialog>
+    </AppShell>
   );
 }
 
