@@ -79,51 +79,35 @@ function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">):
   return "pending";
 }
 
+type Unavail = { id: string; therapist_id: string; starts_at: string; ends_at: string; reason: string | null };
+
 function AgendaPage() {
   const navigate = useNavigate();
+  void navigate;
   const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appts, setAppts] = useState<Appointment[]>([]);
+  const [unavail, setUnavail] = useState<Unavail[]>([]);
   const [day, setDay] = useState<Date>(startOfDay(new Date()));
   const [openNew, setOpenNew] = useState(false);
+  const [openUnavail, setOpenUnavail] = useState(false);
+  const [openDuration, setOpenDuration] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"colunas" | "grade">("grade");
   const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
-  const [googleEvents, setGoogleEvents] = useState<SyncedGoogleEvent[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
   const [now, setNow] = useState<Date>(new Date());
-  const syncGoogle = useServerFn(fetchGoogleCalendarDay);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  async function runGoogleSync(silent = false) {
-    setSyncing(true);
-    try {
-      const res = await syncGoogle({ data: { dayISO: day.toISOString() } });
-      if (res.error) {
-        if (!silent) toast.error(res.error);
-        setGoogleEvents([]);
-      } else {
-        setGoogleEvents(res.events);
-        setLastSync(new Date());
-        if (!silent) toast.success(`${res.events.length} evento(s) do Google carregado(s)`);
-      }
-    } catch {
-      if (!silent) toast.error("Falha na sincronização com o Google");
-    } finally {
-      setSyncing(false);
-    }
-  }
+
 
 
   function openCreateAt(roomId: string, hour: number) {
