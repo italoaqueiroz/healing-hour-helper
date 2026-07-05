@@ -149,6 +149,7 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          default_session_minutes: number
           email: string | null
           full_name: string | null
           id: string
@@ -156,6 +157,7 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
+          default_session_minutes?: number
           email?: string | null
           full_name?: string | null
           id: string
@@ -163,6 +165,7 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
+          default_session_minutes?: number
           email?: string | null
           full_name?: string | null
           id?: string

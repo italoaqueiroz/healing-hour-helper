@@ -1,10 +1,8 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, startOfWeek, addMonths } from "date-fns";
+import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, addMonths } from "date-fns";
 import { pt } from "date-fns/locale";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchGoogleCalendarDay, type SyncedGoogleEvent } from "@/lib/google-calendar.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,14 +15,15 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
+import { AppShell } from "@/components/app-shell";
 import {
-  CalendarCheck, ChevronLeft, ChevronRight, LogOut, Plus, RotateCw, Trash2,
-  User as UserIcon, Crown, LayoutGrid, Rows3, Star, Ban, FileText, CalendarIcon,
-  BellRing, RefreshCw, Users,
+  ChevronLeft, ChevronRight, Plus, RotateCw, Trash2,
+  Crown, LayoutGrid, Rows3, Star, Ban, CalendarIcon,
+  BellRing, Clock, Settings2,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
-type Profile = { id: string; full_name: string | null; email: string | null; color: string | null };
+type Profile = { id: string; full_name: string | null; email: string | null; color: string | null; default_session_minutes?: number | null };
 type Patient = { id: string; full_name: string; registration_number: string | null };
 type Status =
   | "pending" | "present" | "absent" | "rescheduled" | "cancelled"
@@ -80,51 +79,35 @@ function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">):
   return "pending";
 }
 
+type Unavail = { id: string; therapist_id: string; starts_at: string; ends_at: string; reason: string | null };
+
 function AgendaPage() {
   const navigate = useNavigate();
+  void navigate;
   const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appts, setAppts] = useState<Appointment[]>([]);
+  const [unavail, setUnavail] = useState<Unavail[]>([]);
   const [day, setDay] = useState<Date>(startOfDay(new Date()));
   const [openNew, setOpenNew] = useState(false);
+  const [openUnavail, setOpenUnavail] = useState(false);
+  const [openDuration, setOpenDuration] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"colunas" | "grade">("grade");
   const [prefill, setPrefill] = useState<{ roomId?: string; hour?: number } | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
-  const [googleEvents, setGoogleEvents] = useState<SyncedGoogleEvent[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
   const [now, setNow] = useState<Date>(new Date());
-  const syncGoogle = useServerFn(fetchGoogleCalendarDay);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  async function runGoogleSync(silent = false) {
-    setSyncing(true);
-    try {
-      const res = await syncGoogle({ data: { dayISO: day.toISOString() } });
-      if (res.error) {
-        if (!silent) toast.error(res.error);
-        setGoogleEvents([]);
-      } else {
-        setGoogleEvents(res.events);
-        setLastSync(new Date());
-        if (!silent) toast.success(`${res.events.length} evento(s) do Google carregado(s)`);
-      }
-    } catch {
-      if (!silent) toast.error("Falha na sincronização com o Google");
-    } finally {
-      setSyncing(false);
-    }
-  }
+
 
 
   function openCreateAt(roomId: string, hour: number) {
@@ -155,11 +138,6 @@ function AgendaPage() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       setUserId(data.user.id);
-      setUserName(
-        (data.user.user_metadata?.full_name as string) ||
-        (data.user.user_metadata?.name as string) ||
-        data.user.email?.split("@")[0] || "Terapeuta"
-      );
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
       setIsAdmin(!!roles?.some((r) => r.role === "admin"));
       const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "admin");
@@ -167,13 +145,16 @@ function AgendaPage() {
     });
   }, []);
 
+  async function loadProfiles() {
+    const { data } = await supabase.from("profiles").select("id, full_name, email, color, default_session_minutes");
+    if (data) setProfiles(data as Profile[]);
+  }
+
   useEffect(() => {
     supabase.from("rooms").select("*").order("position").then(({ data }) => {
       if (data) setRooms(data as Room[]);
     });
-    supabase.from("profiles").select("id, full_name, email, color").then(({ data }) => {
-      if (data) setProfiles(data as Profile[]);
-    });
+    loadProfiles();
     loadPatients();
   }, []);
 
@@ -197,7 +178,17 @@ function AgendaPage() {
     setLoading(false);
   }
 
-  useEffect(() => { loadAppts(day); runGoogleSync(true); }, [day]);
+  async function loadUnavail(d: Date) {
+    const start = startOfDay(d).toISOString();
+    const end = addDays(startOfDay(d), 1).toISOString();
+    const { data } = await supabase.from("therapist_unavailability")
+      .select("id, therapist_id, starts_at, ends_at, reason")
+      .lt("starts_at", end).gt("ends_at", start);
+    setUnavail((data as Unavail[]) || []);
+  }
+
+  useEffect(() => { loadAppts(day); loadUnavail(day); }, [day]);
+
 
   async function claimAdmin() {
     const { data, error } = await supabase.rpc("claim_admin");
@@ -287,65 +278,61 @@ function AgendaPage() {
     return m;
   }, [rooms, apptsByRoom]);
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground">
-              <CalendarCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="font-display text-lg leading-tight">O Fio de Ariana</div>
-              <div className="text-xs text-muted-foreground -mt-0.5">Agenda terapêutica</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-3">
-            <Link to="/contactos" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
-              <Users className="h-4 w-4" /><span className="hidden sm:inline">Contactos</span>
-            </Link>
-            <Link to="/relatorios" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground gap-1 px-1.5">
-              <FileText className="h-4 w-4" /><span className="hidden sm:inline">Relatórios</span>
-            </Link>
-            <Button size="sm" variant="ghost" onClick={() => runGoogleSync(false)} disabled={syncing}
-              title={lastSync ? `Última sincronização: ${format(lastSync, "HH:mm")}` : "Sincronizar Google Calendar"}>
-              <RefreshCw className={`h-4 w-4 sm:mr-1 ${syncing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Google</span>
-            </Button>
-            {isAdmin && (
-              <Badge className="bg-primary text-primary-foreground gap-1">
-                <Crown className="h-3 w-3" />Admin
-              </Badge>
-            )}
-            {adminExists === false && !isAdmin && (
-              <Button size="sm" variant="outline" onClick={claimAdmin}>
-                <Crown className="h-4 w-4 mr-1" />Tornar-me admin
-              </Button>
-            )}
-            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-              <UserIcon className="h-4 w-4" /> {userName}
-            </div>
-            <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" />Sair</Button>
-          </div>
-        </div>
-      </header>
+  const myProfile = profiles.find((p) => p.id === userId);
 
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+  return (
+    <AppShell
+      title="Agenda"
+      subtitle={format(day, "EEEE, d 'de' MMMM", { locale: pt })}
+      actions={
+        <>
+          {isAdmin && (
+            <Badge className="bg-primary text-primary-foreground gap-1 hidden sm:inline-flex">
+              <Crown className="h-3 w-3" />Admin
+            </Badge>
+          )}
+          {adminExists === false && !isAdmin && (
+            <Button size="sm" variant="outline" onClick={claimAdmin}>
+              <Crown className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Tornar-me admin</span>
+            </Button>
+          )}
+          <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Novo</span></Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle className="font-display text-2xl">Novo atendimento</DialogTitle></DialogHeader>
+              <NewAppointmentForm
+                rooms={rooms}
+                profiles={profiles}
+                patients={patients}
+                defaultDay={day}
+                userId={userId}
+                isAdmin={isAdmin}
+                prefill={prefill}
+                onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); loadUnavail(day); }}
+              />
+            </DialogContent>
+          </Dialog>
+        </>
+      }
+    >
+      <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -7))} title="Semana anterior"><ChevronLeft className="h-4 w-4" /><ChevronLeft className="h-4 w-4 -ml-2.5" /></Button>
               <Button variant="outline" size="icon" onClick={() => setDay(addDays(day, -1))} title="Dia anterior"><ChevronLeft className="h-4 w-4" /></Button>
             </div>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="min-w-[210px] sm:min-w-[260px] justify-start gap-2 px-3">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-left leading-tight">
-                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                <Button variant="outline" className="min-w-[180px] sm:min-w-[240px] justify-start gap-2 px-2.5 sm:px-3">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="text-left leading-tight min-w-0">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground truncate">
                       {format(day, "EEEE", { locale: pt })}
                     </div>
-                    <div className="font-display text-base sm:text-lg">
+                    <div className="font-display text-sm sm:text-base truncate">
                       {format(day, "d 'de' MMMM, yyyy", { locale: pt })}
                     </div>
                   </div>
@@ -371,40 +358,63 @@ function AgendaPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button size="sm" variant="outline" onClick={() => setOpenUnavail(true)} title="Gerir indisponibilidades">
+              <Ban className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Indisponível</span>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpenDuration(true)} title="Duração padrão da minha sessão">
+              <Settings2 className="h-4 w-4" />
+            </Button>
             <div className="flex rounded-md border border-border p-0.5">
               <Button size="sm" variant={view === "colunas" ? "default" : "ghost"} onClick={() => setView("colunas")}>
-                <LayoutGrid className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Colunas</span>
+                <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button size="sm" variant={view === "grade" ? "default" : "ghost"} onClick={() => setView("grade")}>
-                <Rows3 className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Grade</span>
+                <Rows3 className="h-4 w-4" />
               </Button>
             </div>
-            <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
-              <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Novo atendimento</span></Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle className="font-display text-2xl">Novo atendimento</DialogTitle></DialogHeader>
-                <NewAppointmentForm
-                  rooms={rooms}
-                  profiles={profiles}
-                  patients={patients}
-                  defaultDay={day}
-                  userId={userId}
-                  isAdmin={isAdmin}
-                  prefill={prefill}
-                  onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); }}
-                />
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
+
+        {unavail.length > 0 && (
+          <div className="mt-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2">
+            <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <Ban className="h-3 w-3" />Indisponibilidades hoje · {unavail.length}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {unavail.map((u) => {
+                const p = profiles.find((x) => x.id === u.therapist_id);
+                return (
+                  <span key={u.id}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px]">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: p?.color || "#999" }} />
+                    <span className="font-medium">{p?.full_name || "Terapeuta"}</span>
+                    <span className="text-muted-foreground">
+                      {format(parseISO(u.starts_at), "HH:mm")}–{format(parseISO(u.ends_at), "HH:mm")}
+                    </span>
+                    {u.reason && <span className="text-muted-foreground italic">· {u.reason}</span>}
+                    {(isAdmin || u.therapist_id === userId) && (
+                      <button className="ml-1 text-muted-foreground hover:text-destructive"
+                        onClick={async () => {
+                          const { error } = await supabase.from("therapist_unavailability").delete().eq("id", u.id);
+                          if (error) return toast.error("Não foi possível remover");
+                          setUnavail((cur) => cur.filter((x) => x.id !== u.id));
+                          toast.success("Removido");
+                        }} title="Remover">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="mt-10 text-center text-muted-foreground">A carregar agenda…</div>
         ) : view === "colunas" ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {rooms.map((room) => (
               <RoomColumn
                 key={room.id} room={room}
@@ -421,9 +431,9 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} googleEvents={googleEvents} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} unavail={unavail} profiles={profiles} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} />
         )}
-      </main>
+      </div>
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -441,7 +451,30 @@ function AgendaPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+
+      <Dialog open={openUnavail} onOpenChange={setOpenUnavail}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Marcar indisponibilidade</DialogTitle></DialogHeader>
+          <UnavailabilityForm
+            profiles={profiles}
+            userId={userId}
+            isAdmin={isAdmin}
+            defaultDay={day}
+            onSaved={() => { setOpenUnavail(false); loadUnavail(day); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openDuration} onOpenChange={setOpenDuration}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Duração padrão da sessão</DialogTitle></DialogHeader>
+          <DurationForm
+            profile={myProfile}
+            onSaved={() => { setOpenDuration(false); loadProfiles(); }}
+          />
+        </DialogContent>
+      </Dialog>
+    </AppShell>
   );
 }
 
@@ -472,7 +505,7 @@ function RoomColumn({
         <div className="mt-1 flex items-center gap-1.5 text-xs">
           <Star className="h-3 w-3" style={{ color: lead.color || undefined, fill: lead.color || undefined }} />
           <span className="font-medium" style={{ color: lead.color || undefined }}>{lead.name}</span>
-          <span className="text-muted-foreground">· {lead.count} sessão{lead.count > 1 ? "s" : ""} hoje</span>
+          <span className="text-muted-foreground">· {lead.count} {lead.count === 1 ? "sessão" : "sessões"} hoje</span>
         </div>
       ) : (
         <div className="mt-1 text-xs text-muted-foreground">Sala livre — clique em + para agendar</div>
@@ -523,6 +556,7 @@ function AppointmentCard({
   const isSession = a.event_type === "session";
   const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
   const checkedIn = !!a.check_in_at;
+  const strikeInfo = strikeStyleFor(a.attendance_status);
   return (
     <div
       onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onOpen(a); }}
@@ -532,7 +566,11 @@ function AppointmentCard({
         : highlighted
           ? "border border-primary/30 bg-accent/20"
           : "border border-border bg-background"
-    }`} style={!cancelled ? { borderLeftColor: color } : undefined}>
+    } ${strikeInfo ? "status-strike" : ""}`}
+      style={{
+        ...(cancelled ? {} : { borderLeftColor: color }),
+        ...(strikeInfo ? { ["--strike-color" as string]: strikeInfo.color } : {}),
+      }}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className={`font-medium truncate flex items-center gap-1.5 ${cancelled ? "line-through" : ""}`}>
@@ -559,7 +597,7 @@ function AppointmentCard({
           <Button size="sm" variant={checkedIn ? "default" : "outline"}
             onClick={() => onCheckIn(a)}
             className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
-            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na recepção"}>
+            title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na receção"}>
             <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
           </Button>
         )}
@@ -573,11 +611,6 @@ function AppointmentCard({
             {opt.sigla}
           </Button>
         ))}
-        <Button size="sm" variant={cancelled ? "secondary" : "outline"}
-          disabled={!canEdit} onClick={() => onMark(a, cancelled ? "pending" : "cancelled")}
-          title={cancelled ? "Reativar" : "Cancelar (libera o horário)"}>
-          <Ban className="h-3.5 w-3.5 mr-1" />{cancelled ? "Reativar" : "Cancelar"}
-        </Button>
         {canEdit && (
           <div className="ml-auto flex gap-1">
             {a.recurrence_group_id && (
@@ -595,6 +628,13 @@ function AppointmentCard({
       </div>
     </div>
   );
+}
+
+function strikeStyleFor(s: Status): { color: string } | null {
+  if (s === "absent_therapist") return { color: "var(--color-warning)" };
+  if (s === "absent_unjustified" || s === "absent") return { color: "var(--color-destructive)" };
+  if (s === "absent_justified") return { color: "var(--color-muted-foreground)" };
+  return null;
 }
 
 const PX_PER_MIN = 1; // 60px per hour
@@ -633,11 +673,13 @@ function layoutLanes(items: Appointment[]) {
 }
 
 function GridView({
-  rooms, appts, leadByRoom, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
-  now, day, googleEvents,
+  rooms, appts, leadByRoom, unavail, profiles, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
+  now, day,
 }: {
   rooms: Room[]; appts: Appointment[];
   leadByRoom: Map<string, { therapist_id: string; name: string; count: number; color: string | null } | null>;
+  unavail: Unavail[];
+  profiles: Profile[];
   canEdit: (a: Appointment) => boolean;
   onMark: (a: Appointment, s: Status) => void;
   onCheckIn: (a: Appointment) => void;
@@ -647,7 +689,6 @@ function GridView({
   onOpen: (a: Appointment) => void;
   now: Date;
   day: Date;
-  googleEvents: SyncedGoogleEvent[];
 }) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const apptById = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
@@ -665,27 +706,17 @@ function GridView({
   const showNowLine = isToday && nowMin >= 0 && nowMin <= TOTAL_MINUTES;
   const nowTop = nowMin * PX_PER_MIN;
 
+  const unavailBands = unavail.map((u) => {
+    const s = parseISO(u.starts_at);
+    const e = parseISO(u.ends_at);
+    const startMin = Math.max(0, (s.getHours() - GRID_START_HOUR) * 60 + s.getMinutes());
+    const endMin = Math.min(TOTAL_MINUTES, (e.getHours() - GRID_START_HOUR) * 60 + e.getMinutes());
+    const p = profiles.find((pp) => pp.id === u.therapist_id);
+    return { u, top: startMin * PX_PER_MIN, height: Math.max(8, (endMin - startMin) * PX_PER_MIN), color: p?.color || "#999", name: p?.full_name || "Terapeuta" };
+  });
+
   return (
-    <div className="mt-6 space-y-3">
-      {googleEvents.length > 0 && (
-        <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <RefreshCw className="h-3 w-3" />Google Calendar · {googleEvents.length} evento(s) do dia
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {googleEvents.map((g) => (
-              <a key={g.id} href={g.htmlLink || "#"} target="_blank" rel="noreferrer"
-                title={g.description || g.title}
-                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-[11px] hover:bg-primary/10">
-                <span className="font-medium">{g.title}</span>
-                <span className="text-muted-foreground">
-                  {g.all_day ? "todo o dia" : `${format(parseISO(g.starts_at), "HH:mm")}–${format(parseISO(g.ends_at), "HH:mm")}`}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="mt-4 space-y-3">
     <div className="overflow-auto rounded-lg border border-border bg-card">
       <div className="flex min-w-max relative">
         {/* Hour gutter */}
@@ -739,7 +770,19 @@ function GridView({
                     );
                   })}
 
-                  {/* Half-hour guide lines */}
+                  {/* Unavailability bands (per therapist, shown in every room column) */}
+                  {unavailBands.map((b) => (
+                    <div key={`unav-${b.u.id}-${r.id}`}
+                      title={`${b.name} indisponível ${format(parseISO(b.u.starts_at), "HH:mm")}–${format(parseISO(b.u.ends_at), "HH:mm")}${b.u.reason ? " · " + b.u.reason : ""}`}
+                      className="pointer-events-none absolute left-0 right-0 opacity-40"
+                      style={{
+                        top: b.top, height: b.height,
+                        background: `repeating-linear-gradient(45deg, ${b.color}33 0 6px, transparent 6px 12px)`,
+                        borderTop: `1px dashed ${b.color}`,
+                        borderBottom: `1px dashed ${b.color}`,
+                      }} />
+                  ))}
+
                   {HOURS.map((h, i) => (
                     <div key={`half-${h}`} className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-border/30"
                       style={{ top: (i * 60 + 30) * PX_PER_MIN }} />
@@ -911,6 +954,19 @@ function NewAppointmentForm({
 
   useEffect(() => { if (rooms.length && !roomId) setRoomId(rooms[0].id); }, [rooms]);
   useEffect(() => { if (!therapistId && userId) setTherapistId(userId); }, [userId]);
+
+  // Auto-fill end time based on selected therapist's default_session_minutes
+  useEffect(() => {
+    const tid = therapistId || userId;
+    const prof = profiles.find((p) => p.id === tid);
+    const mins = prof?.default_session_minutes ?? 60;
+    const [h, m] = startTime.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return;
+    const total = h * 60 + m + mins;
+    const eh = Math.min(23, Math.floor(total / 60));
+    const em = total % 60;
+    setEndTime(`${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`);
+  }, [therapistId, startTime, profiles, userId]);
 
   const filteredPatients = useMemo(() => {
     const q = patientQuery.trim().toLowerCase();
@@ -1394,5 +1450,118 @@ function EditAppointmentForm({
         {canEdit && <Button type="submit" disabled={saving} className="flex-1">{saving ? "A guardar…" : "Guardar alterações"}</Button>}
       </div>
     </form>
+  );
+}
+
+function UnavailabilityForm({
+  profiles, userId, isAdmin, defaultDay, onSaved,
+}: {
+  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; onSaved: () => void;
+}) {
+  const [therapistId, setTherapistId] = useState(userId || "");
+  const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("13:00");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (!therapistId && userId) setTherapistId(userId); }, [userId]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
+    setSaving(true);
+    const { error } = await supabase.from("therapist_unavailability").insert({
+      therapist_id: isAdmin ? therapistId : (userId || ""),
+      starts_at: new Date(`${date}T${startTime}:00`).toISOString(),
+      ends_at: new Date(`${date}T${endTime}:00`).toISOString(),
+      reason: reason.trim() || null,
+      created_by: userId,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Indisponibilidade registada");
+    onSaved();
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div>
+        <Label>Terapeuta</Label>
+        <Select value={therapistId} onValueChange={setTherapistId} disabled={!isAdmin}>
+          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+          <SelectContent>
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color || "#999" }} />
+                  {p.full_name || p.email?.split("@")[0] || "Terapeuta"}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="unav-date">Data</Label>
+        <Input id="unav-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="unav-start">Início</Label>
+          <Input id="unav-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+        </div>
+        <div>
+          <Label htmlFor="unav-end">Fim</Label>
+          <Input id="unav-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="unav-reason">Motivo (opcional)</Label>
+        <Input id="unav-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} placeholder="Ex.: consulta médica, formação…" />
+      </div>
+      <Button type="submit" disabled={saving} className="w-full">
+        {saving ? "A guardar…" : "Marcar indisponibilidade"}
+      </Button>
+    </form>
+  );
+}
+
+function DurationForm({ profile, onSaved }: { profile?: Profile; onSaved: () => void }) {
+  const [mins, setMins] = useState<number>(profile?.default_session_minutes ?? 60);
+  const [saving, setSaving] = useState(false);
+  if (!profile) return <div className="text-sm text-muted-foreground">Perfil não encontrado.</div>;
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.from("profiles").update({ default_session_minutes: mins }).eq("id", profile!.id);
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Duração atualizada");
+    onSaved();
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Ao criar um atendimento, a hora final é pré-preenchida com esta duração. Podes sempre alterar manualmente.
+      </p>
+      <div className="flex items-center gap-2">
+        {[45, 60, 75, 90].map((m) => (
+          <Button key={m} type="button" size="sm"
+            variant={mins === m ? "default" : "outline"} onClick={() => setMins(m)}>
+            {m} min
+          </Button>
+        ))}
+      </div>
+      <div>
+        <Label htmlFor="dur-custom">Personalizada (minutos)</Label>
+        <Input id="dur-custom" type="number" min={15} max={240} step={5}
+          value={mins} onChange={(e) => setMins(Math.max(15, Math.min(240, Number(e.target.value) || 60)))} />
+      </div>
+      <Button onClick={save} disabled={saving} className="w-full">
+        {saving ? "A guardar…" : "Guardar"}
+      </Button>
+    </div>
   );
 }
