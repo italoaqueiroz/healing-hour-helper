@@ -1525,6 +1525,11 @@ function UnavailabilityForm({
     setSaving(true);
     const { error } = await supabase.from("therapist_unavailability").insert({
       therapist_id: tid,
+      starts_at: startISO,
+      ends_at: endISO,
+      reason: reason.trim() || null,
+      created_by: userId,
+    });
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Indisponibilidade registada");
