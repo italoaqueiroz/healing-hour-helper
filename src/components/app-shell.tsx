@@ -52,7 +52,7 @@ export function AppShell({
 
   const NavLinks = ({ onClick }: { onClick?: () => void }) => (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => {
+      {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
         const active = isActive(item.to);
         const Icon = item.icon;
         return (
