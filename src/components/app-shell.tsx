@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, Crown, X,
+  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog,
 } from "lucide-react";
 
 type NavItem = { to: "/agenda" | "/contactos" | "/relatorios"; label: string; icon: React.ComponentType<{ className?: string }> };
