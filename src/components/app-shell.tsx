@@ -4,15 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, Crown, X,
+  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog,
 } from "lucide-react";
 
-type NavItem = { to: "/agenda" | "/contactos" | "/relatorios"; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { to: "/agenda" | "/contactos" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarCheck },
   { to: "/contactos", label: "Contactos", icon: Users },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
+  { to: "/equipa", label: "Equipa", icon: UserCog, adminOnly: true },
 ];
 
 export function AppShell({
@@ -51,7 +52,7 @@ export function AppShell({
 
   const NavLinks = ({ onClick }: { onClick?: () => void }) => (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => {
+      {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
         const active = isActive(item.to);
         const Icon = item.icon;
         return (
@@ -97,7 +98,6 @@ export function AppShell({
           <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
             <UserIcon className="h-4 w-4 shrink-0" />
             <span className="truncate">{userName}</span>
-            {isAdmin && <Crown aria-label="Admin" className="h-3.5 w-3.5 text-primary shrink-0" />}
           </div>
           <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
             <LogOut className="h-4 w-4 mr-2" />Sair
@@ -130,7 +130,6 @@ export function AppShell({
                   <div className="flex items-center gap-2 px-2 text-sm text-muted-foreground">
                     <UserIcon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{userName}</span>
-                    {isAdmin && <Crown className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </div>
                   <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
                     <LogOut className="h-4 w-4 mr-2" />Sair
@@ -158,8 +157,8 @@ export function AppShell({
 
         {/* Mobile bottom nav (app-like) */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-3">
-            {NAV.map((item) => {
+          <div className={`grid ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}>
+            {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
               const active = isActive(item.to);
               const Icon = item.icon;
               return (

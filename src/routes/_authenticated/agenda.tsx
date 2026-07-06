@@ -286,14 +286,10 @@ function AgendaPage() {
       subtitle={format(day, "EEEE, d 'de' MMMM", { locale: pt })}
       actions={
         <>
-          {isAdmin && (
-            <Badge className="bg-primary text-primary-foreground gap-1 hidden sm:inline-flex">
-              <Crown className="h-3 w-3" />Admin
-            </Badge>
-          )}
           {adminExists === false && !isAdmin && (
             <Button size="sm" variant="outline" onClick={claimAdmin}>
-              <Crown className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Tornar-me admin</span>
+              <span className="hidden sm:inline">Tornar-me admin</span>
+              <span className="sm:hidden">Admin</span>
             </Button>
           )}
           <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setPrefill(null); }}>
