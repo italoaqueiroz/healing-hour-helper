@@ -130,7 +130,6 @@ export function AppShell({
                   <div className="flex items-center gap-2 px-2 text-sm text-muted-foreground">
                     <UserIcon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{userName}</span>
-                    {isAdmin && <Crown className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </div>
                   <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
                     <LogOut className="h-4 w-4 mr-2" />Sair
