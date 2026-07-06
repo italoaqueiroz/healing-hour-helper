@@ -1477,9 +1477,9 @@ function EditAppointmentForm({
 }
 
 function UnavailabilityForm({
-  profiles, userId, isAdmin, defaultDay, onSaved,
+  profiles, userId, isAdmin, defaultDay, appts, onSaved,
 }: {
-  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; onSaved: () => void;
+  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; appts: Appointment[]; onSaved: () => void;
 }) {
   const [therapistId, setTherapistId] = useState(userId || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
@@ -1493,14 +1493,38 @@ function UnavailabilityForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
+    const tid = isAdmin ? therapistId : (userId || "");
+    const startISO = new Date(`${date}T${startTime}:00`).toISOString();
+    const endISO = new Date(`${date}T${endTime}:00`).toISOString();
+    const startMs = new Date(startISO).getTime();
+    const endMs = new Date(endISO).getTime();
+    const conflicts = appts.filter((a) => {
+      const involves = a.therapist_id === tid
+        || a.co_therapist_id === tid
+        || (a.additional_therapist_ids || []).includes(tid);
+      if (!involves) return false;
+      const aS = new Date(a.starts_at).getTime();
+      const aE = new Date(a.ends_at).getTime();
+      return aS < endMs && aE > startMs;
+    });
+    if (conflicts.length > 0) {
+      const list = conflicts.slice(0, 3).map((a) =>
+        `• ${format(parseISO(a.starts_at), "HH:mm")}–${format(parseISO(a.ends_at), "HH:mm")} ${eventLabel(a)}`
+      ).join("\n");
+      const extra = conflicts.length > 3 ? `\n… e mais ${conflicts.length - 3}` : "";
+      const ok = window.confirm(
+        `Este período tem ${conflicts.length} atendimento(s) marcado(s):\n\n${list}${extra}\n\nTem a certeza que quer marcar indisponibilidade?`
+      );
+      if (!ok) return;
+    } else {
+      const ok = window.confirm(
+        `Confirmar indisponibilidade de ${startTime} às ${endTime} em ${format(new Date(date), "d 'de' MMMM", { locale: pt })}?`
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     const { error } = await supabase.from("therapist_unavailability").insert({
-      therapist_id: isAdmin ? therapistId : (userId || ""),
-      starts_at: new Date(`${date}T${startTime}:00`).toISOString(),
-      ends_at: new Date(`${date}T${endTime}:00`).toISOString(),
-      reason: reason.trim() || null,
-      created_by: userId,
-    });
+      therapist_id: tid,
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Indisponibilidade registada");
