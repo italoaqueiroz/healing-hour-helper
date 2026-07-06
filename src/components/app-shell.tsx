@@ -157,8 +157,8 @@ export function AppShell({
 
         {/* Mobile bottom nav (app-like) */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-3">
-            {NAV.map((item) => {
+          <div className={`grid ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}>
+            {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
               const active = isActive(item.to);
               const Icon = item.icon;
               return (
