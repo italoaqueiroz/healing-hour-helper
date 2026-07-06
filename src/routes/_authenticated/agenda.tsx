@@ -482,6 +482,7 @@ function AgendaPage() {
             userId={userId}
             isAdmin={isAdmin}
             defaultDay={day}
+            appts={appts}
             onSaved={() => { setOpenUnavail(false); loadUnavail(day); }}
           />
         </DialogContent>
