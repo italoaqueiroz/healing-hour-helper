@@ -7,12 +7,13 @@ import {
   CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog,
 } from "lucide-react";
 
-type NavItem = { to: "/agenda" | "/contactos" | "/relatorios"; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { to: "/agenda" | "/contactos" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarCheck },
   { to: "/contactos", label: "Contactos", icon: Users },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
+  { to: "/equipa", label: "Equipa", icon: UserCog, adminOnly: true },
 ];
 
 export function AppShell({
