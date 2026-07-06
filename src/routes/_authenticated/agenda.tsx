@@ -376,40 +376,62 @@ function AgendaPage() {
           </div>
         </div>
 
-        {unavail.length > 0 && (
-          <div className="mt-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2">
-            <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Ban className="h-3 w-3" />Indisponibilidades hoje · {unavail.length}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {unavail.map((u) => {
-                const p = profiles.find((x) => x.id === u.therapist_id);
+        {unavail.length > 0 && (() => {
+          const groups = new Map<string, typeof unavail>();
+          unavail.forEach((u) => {
+            const arr = groups.get(u.therapist_id) || [];
+            arr.push(u);
+            groups.set(u.therapist_id, arr);
+          });
+          return (
+            <div className="mt-3 flex items-stretch gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              <div className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
+                <Ban className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Indisponíveis hoje</span>
+                <span className="sm:hidden">Off</span>
+                <span className="tabular-nums">· {unavail.length}</span>
+              </div>
+              {Array.from(groups.entries()).map(([tid, items]) => {
+                const p = profiles.find((x) => x.id === tid);
+                const color = p?.color || "#999";
                 return (
-                  <span key={u.id}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px]">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: p?.color || "#999" }} />
-                    <span className="font-medium">{p?.full_name || "Terapeuta"}</span>
-                    <span className="text-muted-foreground">
-                      {format(parseISO(u.starts_at), "HH:mm")}–{format(parseISO(u.ends_at), "HH:mm")}
-                    </span>
-                    {u.reason && <span className="text-muted-foreground italic">· {u.reason}</span>}
-                    {(isAdmin || u.therapist_id === userId) && (
-                      <button className="ml-1 text-muted-foreground hover:text-destructive"
-                        onClick={async () => {
-                          const { error } = await supabase.from("therapist_unavailability").delete().eq("id", u.id);
-                          if (error) return toast.error("Não foi possível remover");
-                          setUnavail((cur) => cur.filter((x) => x.id !== u.id));
-                          toast.success("Removido");
-                        }} title="Remover">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </span>
+                  <div key={tid}
+                    className="shrink-0 rounded-lg border bg-card px-2.5 py-1.5 shadow-sm"
+                    style={{ borderColor: color + "55", background: `linear-gradient(90deg, ${color}12, transparent 60%)` }}>
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color }}>
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
+                      <span className="truncate max-w-[10rem]">{p?.full_name || p?.email?.split("@")[0] || "Terapeuta"}</span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      {items.map((u) => (
+                        <span key={u.id}
+                          className="group inline-flex items-center gap-1 rounded-md bg-background/70 px-1.5 py-0.5 text-[11px] tabular-nums"
+                          title={u.reason || undefined}>
+                          <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                          {format(parseISO(u.starts_at), "HH:mm")}–{format(parseISO(u.ends_at), "HH:mm")}
+                          {u.reason && <span className="text-muted-foreground italic truncate max-w-[6rem]">· {u.reason}</span>}
+                          {(isAdmin || u.therapist_id === userId) && (
+                            <button className="ml-0.5 opacity-60 hover:opacity-100 hover:text-destructive"
+                              onClick={async () => {
+                                const label = `${format(parseISO(u.starts_at), "HH:mm")}–${format(parseISO(u.ends_at), "HH:mm")}`;
+                                if (!window.confirm(`Remover a indisponibilidade das ${label}?`)) return;
+                                const { error } = await supabase.from("therapist_unavailability").delete().eq("id", u.id);
+                                if (error) return toast.error("Não foi possível remover");
+                                setUnavail((cur) => cur.filter((x) => x.id !== u.id));
+                                toast.success("Indisponibilidade removida");
+                              }} title="Remover">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {loading ? (
           <div className="mt-10 text-center text-muted-foreground">A carregar agenda…</div>
@@ -460,6 +482,7 @@ function AgendaPage() {
             userId={userId}
             isAdmin={isAdmin}
             defaultDay={day}
+            appts={appts}
             onSaved={() => { setOpenUnavail(false); loadUnavail(day); }}
           />
         </DialogContent>
@@ -1454,9 +1477,9 @@ function EditAppointmentForm({
 }
 
 function UnavailabilityForm({
-  profiles, userId, isAdmin, defaultDay, onSaved,
+  profiles, userId, isAdmin, defaultDay, appts, onSaved,
 }: {
-  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; onSaved: () => void;
+  profiles: Profile[]; userId: string | null; isAdmin: boolean; defaultDay: Date; appts: Appointment[]; onSaved: () => void;
 }) {
   const [therapistId, setTherapistId] = useState(userId || "");
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
@@ -1470,11 +1493,40 @@ function UnavailabilityForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (endTime <= startTime) return toast.error("Hora final deve ser após a inicial.");
+    const tid = isAdmin ? therapistId : (userId || "");
+    const startISO = new Date(`${date}T${startTime}:00`).toISOString();
+    const endISO = new Date(`${date}T${endTime}:00`).toISOString();
+    const startMs = new Date(startISO).getTime();
+    const endMs = new Date(endISO).getTime();
+    const conflicts = appts.filter((a) => {
+      const involves = a.therapist_id === tid
+        || a.co_therapist_id === tid
+        || (a.additional_therapist_ids || []).includes(tid);
+      if (!involves) return false;
+      const aS = new Date(a.starts_at).getTime();
+      const aE = new Date(a.ends_at).getTime();
+      return aS < endMs && aE > startMs;
+    });
+    if (conflicts.length > 0) {
+      const list = conflicts.slice(0, 3).map((a) =>
+        `• ${format(parseISO(a.starts_at), "HH:mm")}–${format(parseISO(a.ends_at), "HH:mm")} ${eventLabel(a)}`
+      ).join("\n");
+      const extra = conflicts.length > 3 ? `\n… e mais ${conflicts.length - 3}` : "";
+      const ok = window.confirm(
+        `Este período tem ${conflicts.length} atendimento(s) marcado(s):\n\n${list}${extra}\n\nTem a certeza que quer marcar indisponibilidade?`
+      );
+      if (!ok) return;
+    } else {
+      const ok = window.confirm(
+        `Confirmar indisponibilidade de ${startTime} às ${endTime} em ${format(new Date(date), "d 'de' MMMM", { locale: pt })}?`
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     const { error } = await supabase.from("therapist_unavailability").insert({
-      therapist_id: isAdmin ? therapistId : (userId || ""),
-      starts_at: new Date(`${date}T${startTime}:00`).toISOString(),
-      ends_at: new Date(`${date}T${endTime}:00`).toISOString(),
+      therapist_id: tid,
+      starts_at: startISO,
+      ends_at: endISO,
       reason: reason.trim() || null,
       created_by: userId,
     });
