@@ -122,7 +122,23 @@ function ReportsPage() {
     return c;
   }, [appts]);
 
-  function downloadPdf() {
+  async function loadLogoDataUrl(): Promise<string | null> {
+    try {
+      const res = await fetch("/logo-fio-ariana.png");
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function downloadPdf() {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const w = doc.internal.pageSize.getWidth();
     const tFilter = isAdmin ? therapistFilter : "self";
@@ -131,6 +147,12 @@ function ReportsPage() {
       : tFilter === "self"
         ? (profiles.find((p) => p.id === userId)?.full_name || "Meu relatório")
         : (profiles.find((p) => p.id === tFilter)?.full_name || "Terapeuta");
+
+    // Logo (top-right)
+    const logo = await loadLogoDataUrl();
+    if (logo) {
+      try { doc.addImage(logo, "PNG", w - 40 - 56, 30, 56, 56); } catch { /* ignore */ }
+    }
 
     doc.setFont("helvetica", "bold"); doc.setFontSize(16);
     doc.text("O Fio de Ariana — Relatório mensal de presenças", 40, 50);
@@ -174,7 +196,6 @@ function ReportsPage() {
 
     const file = `presencas_${format(month, "yyyy-MM")}_${therapistName.replace(/\s+/g, "_")}.pdf`;
     doc.save(file);
-    void w;
   }
 
   return (
