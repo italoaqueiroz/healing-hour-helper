@@ -4,14 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog,
+  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog, Baby,
 } from "lucide-react";
 
-type NavItem = { to: "/agenda" | "/contactos" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
+type NavItem = { to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarCheck },
   { to: "/contactos", label: "Contactos", icon: Users },
+  { to: "/pro-infancia", label: "Pró Infância", icon: Baby },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
   { to: "/equipa", label: "Equipa", icon: UserCog, adminOnly: true },
 ];
