@@ -306,6 +306,7 @@ function AgendaPage() {
                 userId={userId}
                 isAdmin={isAdmin}
                 prefill={prefill}
+                unavail={unavail}
                 onCreated={() => { setOpenNew(false); setPrefill(null); loadAppts(day); loadPatients(); loadUnavail(day); }}
               />
             </DialogContent>
@@ -793,12 +794,12 @@ function GridView({
                   {unavailBands.map((b) => (
                     <div key={`unav-${b.u.id}-${r.id}`}
                       title={`${b.name} indisponível ${format(parseISO(b.u.starts_at), "HH:mm")}–${format(parseISO(b.u.ends_at), "HH:mm")}${b.u.reason ? " · " + b.u.reason : ""}`}
-                      className="pointer-events-none absolute left-0 right-0 opacity-40"
+                      className="pointer-events-none absolute left-0 right-0"
                       style={{
                         top: b.top, height: b.height,
-                        background: `repeating-linear-gradient(45deg, ${b.color}33 0 6px, transparent 6px 12px)`,
-                        borderTop: `1px dashed ${b.color}`,
-                        borderBottom: `1px dashed ${b.color}`,
+                        background: "repeating-linear-gradient(45deg, rgba(100,116,139,0.18) 0 6px, transparent 6px 12px)",
+                        borderTop: "1px dashed rgba(100,116,139,0.55)",
+                        borderBottom: "1px dashed rgba(100,116,139,0.55)",
                       }} />
                   ))}
 
@@ -941,7 +942,7 @@ function statusLabel(s: Status) {
 }
 
 function NewAppointmentForm({
-  rooms, profiles, patients, defaultDay, userId, isAdmin, onCreated, prefill,
+  rooms, profiles, patients, defaultDay, userId, isAdmin, onCreated, prefill, unavail,
 }: {
   rooms: Room[];
   profiles: Profile[];
@@ -951,6 +952,7 @@ function NewAppointmentForm({
   isAdmin: boolean;
   onCreated: () => void;
   prefill?: { roomId?: string; hour?: number } | null;
+  unavail: Unavail[];
 }) {
   const [eventType, setEventType] = useState<EventType>("session");
   const [title, setTitle] = useState("");
@@ -1109,11 +1111,32 @@ function NewAppointmentForm({
       if (rows.length > 60) break;
     }
 
+    // Unavailability conflicts (block/vacation not needed to warn against itself)
+    const relevantTherapists = new Set(
+      [finalTherapist, finalCoTherapist, ...finalExtras].filter(Boolean) as string[]
+    );
+    const unavailWarnings: string[] = [];
+    for (const row of rows) {
+      const rS = new Date(row.starts_at).getTime();
+      const rE = new Date(row.ends_at).getTime();
+      for (const u of unavail) {
+        if (!relevantTherapists.has(u.therapist_id)) continue;
+        const uS = new Date(u.starts_at).getTime();
+        const uE = new Date(u.ends_at).getTime();
+        if (uS < rE && uE > rS) {
+          const p = profiles.find((x) => x.id === u.therapist_id);
+          const who = p?.full_name || p?.email?.split("@")[0] || "Terapeuta";
+          const when = format(parseISO(u.starts_at), "dd/MM HH:mm") + "–" + format(parseISO(u.ends_at), "HH:mm");
+          unavailWarnings.push(`⛔ ${who} indisponível ${when}${u.reason ? " (" + u.reason + ")" : ""}`);
+        }
+      }
+    }
     // Conflict check
     const conflicts = await checkConflicts(rows);
-    if (conflicts.length) {
+    const allWarnings = [...Array.from(new Set(unavailWarnings)).slice(0, 5), ...conflicts];
+    if (allWarnings.length) {
       const proceed = window.confirm(
-        "⚠️ Conflito(s) detectado(s):\n\n" + conflicts.join("\n") + "\n\nDeseja agendar mesmo assim?"
+        "⚠️ Conflito(s) detectado(s):\n\n" + allWarnings.join("\n") + "\n\nDeseja agendar mesmo assim?"
       );
       if (!proceed) { setSaving(false); return; }
     }
