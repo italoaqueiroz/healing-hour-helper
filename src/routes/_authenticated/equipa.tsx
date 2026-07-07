@@ -16,9 +16,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Trash2, ShieldCheck, ShieldOff, UserPlus, Mail } from "lucide-react";
+import { Trash2, ShieldCheck, ShieldOff, UserPlus, Mail, Pencil } from "lucide-react";
 import {
-  listTeam, deleteTeamMember, setAdminRole, inviteTeamMember, type TeamMember,
+  listTeam, deleteTeamMember, setAdminRole, inviteTeamMember, updateTeamMemberName, type TeamMember,
 } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/_authenticated/equipa")({
@@ -37,6 +37,7 @@ function EquipaPage() {
   const doDelete = useServerFn(deleteTeamMember);
   const doSetAdmin = useServerFn(setAdminRole);
   const doInvite = useServerFn(inviteTeamMember);
+  const doRename = useServerFn(updateTeamMemberName);
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,8 @@ function EquipaPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
+  const [editing, setEditing] = useState<TeamMember | null>(null);
+  const [editName, setEditName] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -99,6 +102,25 @@ function EquipaPage() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao convidar");
+    } finally { setBusy(false); }
+  }
+
+  function startEdit(m: TeamMember) {
+    setEditing(m);
+    setEditName(m.full_name || "");
+  }
+
+  async function submitRename(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    try {
+      await doRename({ data: { userId: editing.id, fullName: editName.trim() } });
+      toast.success("Nome atualizado");
+      setEditing(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha a renomear");
     } finally { setBusy(false); }
   }
 
@@ -157,6 +179,15 @@ function EquipaPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  disabled={busy}
+                  onClick={() => startEdit(m)}
+                  title="Editar nome"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   disabled={busy || m.id === me}
                   onClick={() => toggleAdmin(m)}
                   title={m.is_admin ? "Remover admin" : "Tornar admin"}
@@ -178,6 +209,25 @@ function EquipaPage() {
           ))}
         </div>
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Editar nome</DialogTitle></DialogHeader>
+          <form onSubmit={submitRename} className="space-y-3">
+            <div>
+              <Label htmlFor="edit-name">Nome completo</Label>
+              <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={120} required autoFocus />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              O nome aparece na agenda, relatórios e cartões desta pessoa.
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button type="submit" disabled={busy}>{busy ? "A guardar…" : "Guardar"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

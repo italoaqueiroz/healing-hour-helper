@@ -88,3 +88,24 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const updateTeamMemberName = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; fullName: string }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const name = data.fullName.trim();
+    if (!name) throw new Error("Nome obrigatório");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ full_name: name })
+      .eq("id", data.userId);
+    if (pErr) throw new Error(pErr.message);
+    // Also update auth user_metadata so future logins reflect the change
+    const { error: uErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      user_metadata: { full_name: name },
+    });
+    if (uErr) throw new Error(uErr.message);
+    return { ok: true };
+  });

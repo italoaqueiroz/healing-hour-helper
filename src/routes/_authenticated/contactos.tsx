@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Phone, Search, Trash2, UserPlus, Pencil } from "lucide-react";
+import { Phone, Search, Trash2, UserPlus, Pencil, Mail, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated/contactos")({
@@ -27,6 +27,10 @@ type Patient = {
   full_name: string;
   registration_number: string | null;
   phone: string | null;
+  email: string | null;
+  parent_name: string | null;
+  parent_phone: string | null;
+  parent_email: string | null;
   notes: string | null;
   created_at: string;
 };
@@ -53,7 +57,7 @@ function ContactosPage() {
   async function load() {
     setLoading(true);
     const { data, error } = await supabase.from("patients")
-      .select("id, full_name, registration_number, phone, notes, created_at")
+      .select("id, full_name, registration_number, phone, email, parent_name, parent_phone, parent_email, notes, created_at")
       .order("full_name");
     if (error) toast.error("Falha a carregar contactos");
     setPatients((data as Patient[]) || []);
@@ -66,7 +70,10 @@ function ContactosPage() {
     return patients.filter((p) =>
       p.full_name.toLowerCase().includes(q) ||
       (p.registration_number || "").toLowerCase().includes(q) ||
-      (p.phone || "").toLowerCase().includes(q)
+      (p.phone || "").toLowerCase().includes(q) ||
+      (p.email || "").toLowerCase().includes(q) ||
+      (p.parent_name || "").toLowerCase().includes(q) ||
+      (p.parent_phone || "").toLowerCase().includes(q)
     );
   }, [query, patients]);
 
@@ -88,7 +95,7 @@ function ContactosPage() {
           <DialogTrigger asChild>
             <Button size="sm"><UserPlus className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Novo</span></Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Novo contacto</DialogTitle></DialogHeader>
             <PatientForm onSaved={() => { setCreating(false); load(); }} />
           </DialogContent>
@@ -99,7 +106,7 @@ function ContactosPage() {
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Procurar por nome, nº ou telefone…" className="pl-9" />
+            placeholder="Procurar por nome, nº, telefone, e-mail…" className="pl-9" />
         </div>
 
         <div className="mt-4 text-xs text-muted-foreground">
@@ -126,8 +133,29 @@ function ContactosPage() {
                           <Phone className="h-3 w-3" />{p.phone}
                         </a>
                       )}
-                      {!p.registration_number && !p.phone && <span className="italic">Sem dados de contacto</span>}
+                      {p.email && (
+                        <a href={`mailto:${p.email}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                          <Mail className="h-3 w-3" />{p.email}
+                        </a>
+                      )}
                     </div>
+                    {(p.parent_name || p.parent_phone || p.parent_email) && (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />
+                          {p.parent_name || "Encarregado(a)"}
+                        </span>
+                        {p.parent_phone && (
+                          <a href={`tel:${p.parent_phone}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                            <Phone className="h-3 w-3" />{p.parent_phone}
+                          </a>
+                        )}
+                        {p.parent_email && (
+                          <a href={`mailto:${p.parent_email}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                            <Mail className="h-3 w-3" />{p.parent_email}
+                          </a>
+                        )}
+                      </div>
+                    )}
                     {p.notes && <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{p.notes}</div>}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -149,7 +177,7 @@ function ContactosPage() {
       </div>
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar contacto</DialogTitle></DialogHeader>
           {editing && (
             <PatientForm patient={editing} onSaved={() => { setEditing(null); load(); }} />
@@ -182,6 +210,10 @@ function PatientForm({ patient, onSaved }: { patient?: Patient; onSaved: () => v
   const [fullName, setFullName] = useState(patient?.full_name || "");
   const [reg, setReg] = useState(patient?.registration_number || "");
   const [phone, setPhone] = useState(patient?.phone || "");
+  const [email, setEmail] = useState(patient?.email || "");
+  const [parentName, setParentName] = useState(patient?.parent_name || "");
+  const [parentPhone, setParentPhone] = useState(patient?.parent_phone || "");
+  const [parentEmail, setParentEmail] = useState(patient?.parent_email || "");
   const [notes, setNotes] = useState(patient?.notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -193,6 +225,10 @@ function PatientForm({ patient, onSaved }: { patient?: Patient; onSaved: () => v
       full_name: fullName.trim(),
       registration_number: reg.trim() || null,
       phone: phone.trim() || null,
+      email: email.trim() || null,
+      parent_name: parentName.trim() || null,
+      parent_phone: parentPhone.trim() || null,
+      parent_email: parentEmail.trim() || null,
       notes: notes.trim() || null,
     };
     const q = patient
@@ -221,6 +257,31 @@ function PatientForm({ patient, onSaved }: { patient?: Patient; onSaved: () => v
           <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} placeholder="+351…" />
         </div>
       </div>
+      <div>
+        <Label htmlFor="email">E-mail</Label>
+        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} placeholder="paciente@exemplo.pt" />
+      </div>
+
+      <div className="rounded-lg border border-border p-3 space-y-3 bg-muted/20">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" /> Encarregado(a) de educação
+        </div>
+        <div>
+          <Label htmlFor="parent-name">Nome</Label>
+          <Input id="parent-name" value={parentName} onChange={(e) => setParentName(e.target.value)} maxLength={120} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="parent-phone">Telefone</Label>
+            <Input id="parent-phone" type="tel" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} maxLength={40} placeholder="+351…" />
+          </div>
+          <div>
+            <Label htmlFor="parent-email">E-mail</Label>
+            <Input id="parent-email" type="email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} maxLength={120} />
+          </div>
+        </div>
+      </div>
+
       <div>
         <Label htmlFor="notes">Notas</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} rows={3} />

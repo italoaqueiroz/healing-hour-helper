@@ -116,9 +116,13 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          email: string | null
           full_name: string
           id: string
           notes: string | null
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
           phone: string | null
           registration_number: string | null
           updated_at: string
@@ -126,9 +130,13 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          email?: string | null
           full_name: string
           id?: string
           notes?: string | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
           phone?: string | null
           registration_number?: string | null
           updated_at?: string
@@ -136,14 +144,107 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          email?: string | null
           full_name?: string
           id?: string
           notes?: string | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
           phone?: string | null
           registration_number?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      pro_infancia_children: {
+        Row: {
+          active: boolean
+          birth_date: string | null
+          created_at: string
+          created_by: string | null
+          diagnosis: string | null
+          full_name: string
+          goals: string | null
+          id: string
+          notes: string | null
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
+          school: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          birth_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnosis?: string | null
+          full_name: string
+          goals?: string | null
+          id?: string
+          notes?: string | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          school?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          birth_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnosis?: string | null
+          full_name?: string
+          goals?: string | null
+          id?: string
+          notes?: string | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          school?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pro_infancia_notes: {
+        Row: {
+          child_id: string
+          content: string
+          created_at: string
+          id: string
+          session_date: string
+          therapist_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          content: string
+          created_at?: string
+          id?: string
+          session_date?: string
+          therapist_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          session_date?: string
+          therapist_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pro_infancia_notes_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "pro_infancia_children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

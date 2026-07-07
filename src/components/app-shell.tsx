@@ -4,14 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog,
+  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog, Baby,
 } from "lucide-react";
 
-type NavItem = { to: "/agenda" | "/contactos" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
+type NavItem = { to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarCheck },
   { to: "/contactos", label: "Contactos", icon: Users },
+  { to: "/pro-infancia", label: "Pró Infância", icon: Baby },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
   { to: "/equipa", label: "Equipa", icon: UserCog, adminOnly: true },
 ];
@@ -157,7 +158,7 @@ export function AppShell({
 
         {/* Mobile bottom nav (app-like) */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-          <div className={`grid ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}>
+          <div className={`grid ${isAdmin ? "grid-cols-5" : "grid-cols-4"}`}>
             {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
               const active = isActive(item.to);
               const Icon = item.icon;
