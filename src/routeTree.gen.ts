@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedProInfanciaRouteImport } from './routes/_authenticated/pro-infancia'
 import { Route as AuthenticatedEquipaRouteImport } from './routes/_authenticated/equipa'
+import { Route as AuthenticatedContactosProInfanciaRouteImport } from './routes/_authenticated/contactos-pro-infancia'
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedProInfanciaChildIdRouteImport } from './routes/_authenticated/pro-infancia.$childId'
@@ -49,6 +50,12 @@ const AuthenticatedEquipaRoute = AuthenticatedEquipaRouteImport.update({
   path: '/equipa',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedContactosProInfanciaRoute =
+  AuthenticatedContactosProInfanciaRouteImport.update({
+    id: '/contactos-pro-infancia',
+    path: '/contactos-pro-infancia',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedContactosRoute = AuthenticatedContactosRouteImport.update({
   id: '/contactos',
   path: '/contactos',
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/contactos': typeof AuthenticatedContactosRoute
+  '/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/equipa': typeof AuthenticatedEquipaRoute
   '/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -81,6 +89,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/agenda': typeof AuthenticatedAgendaRoute
   '/contactos': typeof AuthenticatedContactosRoute
+  '/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/equipa': typeof AuthenticatedEquipaRoute
   '/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -93,6 +102,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
+  '/_authenticated/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/_authenticated/equipa': typeof AuthenticatedEquipaRoute
   '/_authenticated/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/agenda'
     | '/contactos'
+    | '/contactos-pro-infancia'
     | '/equipa'
     | '/pro-infancia'
     | '/relatorios'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/agenda'
     | '/contactos'
+    | '/contactos-pro-infancia'
     | '/equipa'
     | '/pro-infancia'
     | '/relatorios'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/agenda'
     | '/_authenticated/contactos'
+    | '/_authenticated/contactos-pro-infancia'
     | '/_authenticated/equipa'
     | '/_authenticated/pro-infancia'
     | '/_authenticated/relatorios'
@@ -182,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEquipaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/contactos-pro-infancia': {
+      id: '/_authenticated/contactos-pro-infancia'
+      path: '/contactos-pro-infancia'
+      fullPath: '/contactos-pro-infancia'
+      preLoaderRoute: typeof AuthenticatedContactosProInfanciaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/contactos': {
       id: '/_authenticated/contactos'
       path: '/contactos'
@@ -223,6 +243,7 @@ const AuthenticatedProInfanciaRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
+  AuthenticatedContactosProInfanciaRoute: typeof AuthenticatedContactosProInfanciaRoute
   AuthenticatedEquipaRoute: typeof AuthenticatedEquipaRoute
   AuthenticatedProInfanciaRoute: typeof AuthenticatedProInfanciaRouteWithChildren
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -231,6 +252,8 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedContactosRoute: AuthenticatedContactosRoute,
+  AuthenticatedContactosProInfanciaRoute:
+    AuthenticatedContactosProInfanciaRoute,
   AuthenticatedEquipaRoute: AuthenticatedEquipaRoute,
   AuthenticatedProInfanciaRoute: AuthenticatedProInfanciaRouteWithChildren,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
@@ -247,13 +270,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

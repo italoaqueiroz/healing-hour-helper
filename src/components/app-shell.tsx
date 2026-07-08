@@ -2,19 +2,29 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  CalendarCheck, Users, FileText, LogOut, Menu, User as UserIcon, X, UserCog, Baby,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  CalendarCheck, Users, FileText, LogOut, User as UserIcon, UserCog, Baby,
 } from "lucide-react";
+import { IosInstallBanner } from "./ios-install-banner";
 
-type NavItem = { to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa"; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean };
+type NavItem = {
+  to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa";
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiresAdmin?: boolean;
+  requiresPI?: boolean; // admin OR pro_infancia
+};
 
 const NAV: NavItem[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarCheck },
   { to: "/contactos", label: "Contactos", icon: Users },
-  { to: "/pro-infancia", label: "Pró Infância", icon: Baby },
+  { to: "/pro-infancia", label: "ProInfância", icon: Baby, requiresPI: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
-  { to: "/equipa", label: "Equipa", icon: UserCog, adminOnly: true },
+  { to: "/equipa", label: "Equipa", icon: UserCog, requiresAdmin: true },
 ];
 
 export function AppShell({
@@ -29,7 +39,7 @@ export function AppShell({
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [userName, setUserName] = useState("Terapeuta");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [isPI, setIsPI] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -40,7 +50,10 @@ export function AppShell({
         data.user.email?.split("@")[0] || "Terapeuta"
       );
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+      const list = roles?.map((r) => r.role) || [];
+      const admin = list.includes("admin");
+      setIsAdmin(admin);
+      setIsPI(admin || list.includes("pro_infancia"));
     });
   }, []);
 
@@ -49,132 +62,78 @@ export function AppShell({
     navigate({ to: "/auth", replace: true });
   }
 
-  const isActive = (path: string) => currentPath === path;
+  const visibleNav = NAV.filter((i) => {
+    if (i.requiresAdmin && !isAdmin) return false;
+    if (i.requiresPI && !isPI) return false;
+    return true;
+  });
 
-  const NavLinks = ({ onClick }: { onClick?: () => void }) => (
-    <nav className="flex flex-col gap-1">
-      {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
-        const active = isActive(item.to);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onClick}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-              active
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="font-medium">{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
-
-  const Brand = () => (
-    <div className="flex items-center gap-3">
-      <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm">
-        <CalendarCheck className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <div className="font-display text-lg leading-tight truncate">O Fio de Ariana</div>
-        <div className="text-[11px] text-muted-foreground -mt-0.5">Agenda terapêutica</div>
-      </div>
-    </div>
-  );
+  const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + "/");
 
   return (
-    <div className="flex min-h-[100dvh] w-full bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar/60 backdrop-blur px-4 py-5">
-        <Brand />
-        <div className="mt-6 flex-1">
-          <NavLinks />
-        </div>
-        <div className="border-t border-sidebar-border pt-3 space-y-2">
-          <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
-            <UserIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{userName}</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
-            <LogOut className="h-4 w-4 mr-2" />Sair
-          </Button>
-        </div>
-      </aside>
+    <div className="flex min-h-[100dvh] w-full flex-col bg-background">
+      {/* Top bar */}
+      <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
+        <div className="flex items-center gap-3 px-3 sm:px-5 py-2.5">
+          {/* Fio logo → home */}
+          <Link to="/" className="shrink-0" aria-label="Página inicial">
+            <img
+              src="/pwa-icon-512.png"
+              alt="O Fio de Ariana"
+              className="h-9 w-9 rounded-full ring-1 ring-border object-cover"
+            />
+          </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
-          <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5">
-            {/* Mobile menu */}
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
-                  <Menu className="h-5 w-5" />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-base sm:text-lg leading-tight truncate">{title}</div>
+            {subtitle && <div className="text-[11px] text-muted-foreground -mt-0.5 truncate">{subtitle}</div>}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {actions}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Conta">
+                  <UserIcon className="h-4 w-4" />
                 </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0 flex flex-col">
-                <div className="p-4 border-b border-border flex items-center justify-between">
-                  <Brand />
-                  <Button variant="ghost" size="icon" onClick={() => setOpen(false)} className="h-8 w-8">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex-1 p-3">
-                  <NavLinks onClick={() => setOpen(false)} />
-                </div>
-                <div className="border-t border-border p-3 space-y-2">
-                  <div className="flex items-center gap-2 px-2 text-sm text-muted-foreground">
-                    <UserIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{userName}</span>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
-                    <LogOut className="h-4 w-4 mr-2" />Sair
-                  </Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-
-            <div className="lg:hidden shrink-0">
-              <div className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground">
-                <CalendarCheck className="h-4 w-4" />
-              </div>
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="font-display text-base sm:text-lg leading-tight truncate">{title}</div>
-              {subtitle && <div className="text-[11px] text-muted-foreground -mt-0.5 truncate">{subtitle}</div>}
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">{actions}</div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[200px]">
+                <DropdownMenuLabel className="truncate">{userName}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                  <LogOut className="h-4 w-4 mr-2" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="flex-1 min-w-0 pb-20 lg:pb-6">{children}</main>
+      <main className="flex-1 min-w-0 pb-20">{children}</main>
 
-        {/* Mobile bottom nav (app-like) */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-          <div className={`grid ${isAdmin ? "grid-cols-5" : "grid-cols-4"}`}>
-            {NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => {
-              const active = isActive(item.to);
-              const Icon = item.icon;
-              return (
-                <Link key={item.to} to={item.to}
-                  className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition-colors ${
-                    active ? "text-primary font-semibold" : "text-muted-foreground"
-                  }`}>
-                  <Icon className={`h-5 w-5 ${active ? "scale-110" : ""} transition-transform`} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      </div>
+      {/* Bottom nav — always visible */}
+      <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+        <div
+          className="grid mx-auto max-w-3xl"
+          style={{ gridTemplateColumns: `repeat(${visibleNav.length}, minmax(0, 1fr))` }}
+        >
+          {visibleNav.map((item) => {
+            const active = isActive(item.to);
+            const Icon = item.icon;
+            return (
+              <Link key={item.to} to={item.to}
+                className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition-colors ${
+                  active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}>
+                <Icon className={`h-5 w-5 ${active ? "scale-110" : ""} transition-transform`} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      <IosInstallBanner />
     </div>
   );
 }
