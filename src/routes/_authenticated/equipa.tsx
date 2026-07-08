@@ -16,9 +16,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Trash2, ShieldCheck, ShieldOff, UserPlus, Mail, Pencil } from "lucide-react";
+import { Trash2, ShieldCheck, ShieldOff, UserPlus, Mail, Pencil, Baby } from "lucide-react";
 import {
-  listTeam, deleteTeamMember, setAdminRole, inviteTeamMember, updateTeamMemberName, type TeamMember,
+  listTeam, deleteTeamMember, setAdminRole, setPiRole,
+  inviteTeamMember, updateTeamMemberName, type TeamMember,
 } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/_authenticated/equipa")({
@@ -36,6 +37,7 @@ function EquipaPage() {
   const fetchList = useServerFn(listTeam);
   const doDelete = useServerFn(deleteTeamMember);
   const doSetAdmin = useServerFn(setAdminRole);
+  const doSetPi = useServerFn(setPiRole);
   const doInvite = useServerFn(inviteTeamMember);
   const doRename = useServerFn(updateTeamMemberName);
 
@@ -71,10 +73,21 @@ function EquipaPage() {
     setBusy(true);
     try {
       await doSetAdmin({ data: { userId: m.id, makeAdmin: !m.is_admin } });
-      toast.success(m.is_admin ? "Admin removido" : "Agora é admin");
+      toast.success(m.is_admin ? "Cargo Admin removido" : "Agora é Admin (Secretaria)");
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha a alterar admin");
+      toast.error(e instanceof Error ? e.message : "Falha a alterar cargo");
+    } finally { setBusy(false); }
+  }
+
+  async function togglePi(m: TeamMember) {
+    setBusy(true);
+    try {
+      await doSetPi({ data: { userId: m.id, enable: !m.is_pi } });
+      toast.success(m.is_pi ? "Acesso ProInfância removido" : "Acesso ProInfância dado");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha a alterar cargo");
     } finally { setBusy(false); }
   }
 
@@ -124,10 +137,16 @@ function EquipaPage() {
     } finally { setBusy(false); }
   }
 
+  function roleLabel(m: TeamMember): string {
+    if (m.is_admin) return "Secretaria (Admin)";
+    if (m.is_pi) return "Terapeuta + ProInfância";
+    return "Terapeuta";
+  }
+
   return (
     <AppShell
       title="Equipa"
-      subtitle="Gerir quem tem acesso"
+      subtitle="Gerir acessos e cargos"
       actions={
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
@@ -144,7 +163,7 @@ function EquipaPage() {
                 <Label htmlFor="inv-name">Nome (opcional)</Label>
                 <Input id="inv-name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} maxLength={120} />
               </div>
-              <p className="text-xs text-muted-foreground">A pessoa recebe um e-mail para definir a palavra-passe e entrar.</p>
+              <p className="text-xs text-muted-foreground">A pessoa recebe um e-mail para definir a palavra-passe. Depois de entrar, atribui-lhe os cargos aqui.</p>
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setInviteOpen(false)}>Cancelar</Button>
                 <Button type="submit" disabled={busy}>{busy ? "A enviar..." : "Enviar convite"}</Button>
@@ -155,55 +174,74 @@ function EquipaPage() {
       }
     >
       <div className="p-3 sm:p-5 max-w-3xl mx-auto space-y-3">
+        <Card className="p-3 text-xs text-muted-foreground bg-muted/30">
+          <div className="font-semibold text-foreground mb-1">Cargos disponíveis</div>
+          <ul className="space-y-0.5">
+            <li>• <strong className="text-foreground">Terapeuta</strong> — vê agenda e contactos.</li>
+            <li>• <strong className="text-foreground">Terapeuta + ProInfância</strong> — vê também o módulo ProInfância e os contactos ProInfância.</li>
+            <li>• <strong className="text-foreground">Secretaria (Admin)</strong> — vê e gere tudo (inclui esta página).</li>
+          </ul>
+        </Card>
+
         {loading && <div className="text-sm text-muted-foreground">A carregar…</div>}
         {!loading && members.length === 0 && (
           <Card className="p-6 text-center text-sm text-muted-foreground">Sem membros ainda.</Card>
         )}
         <div className="space-y-2">
           {members.map((m) => (
-            <Card key={m.id} className="p-3 sm:p-4 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="font-medium truncate">{m.full_name || m.email || "Sem nome"}</div>
-                  {m.is_admin && <Badge variant="secondary" className="text-[10px]">Admin</Badge>}
-                  {m.id === me && <Badge variant="outline" className="text-[10px]">Tu</Badge>}
+            <Card key={m.id} className="p-3 sm:p-4">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-medium truncate">{m.full_name || m.email || "Sem nome"}</div>
+                    {m.id === me && <Badge variant="outline" className="text-[10px]">Tu</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                    <Mail className="h-3 w-3 shrink-0" />{m.email || "—"}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                    <Badge variant={m.is_admin ? "default" : "secondary"} className="text-[10px]">
+                      {roleLabel(m)}
+                    </Badge>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    {m.last_sign_in_at ? `Último acesso: ${new Date(m.last_sign_in_at).toLocaleDateString("pt-PT")}` : "Ainda não entrou"}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                  <Mail className="h-3 w-3 shrink-0" />{m.email || "—"}
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => startEdit(m)} title="Editar nome">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => togglePi(m)}
+                    title={m.is_pi ? "Remover acesso ProInfância" : "Dar acesso ProInfância"}
+                    className={m.is_pi ? "text-primary" : ""}
+                  >
+                    <Baby className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy || m.id === me}
+                    onClick={() => toggleAdmin(m)}
+                    title={m.is_admin ? "Remover Admin" : "Tornar Admin (Secretaria)"}
+                  >
+                    {m.is_admin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy || m.id === me}
+                    onClick={() => setToDelete(m)}
+                    title="Remover acesso"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {m.last_sign_in_at ? `Último acesso: ${new Date(m.last_sign_in_at).toLocaleDateString("pt-PT")}` : "Ainda não entrou"}
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => startEdit(m)}
-                  title="Editar nome"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy || m.id === me}
-                  onClick={() => toggleAdmin(m)}
-                  title={m.is_admin ? "Remover admin" : "Tornar admin"}
-                >
-                  {m.is_admin ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy || m.id === me}
-                  onClick={() => setToDelete(m)}
-                  title="Remover acesso"
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
             </Card>
           ))}
@@ -234,7 +272,7 @@ function EquipaPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover acesso?</AlertDialogTitle>
             <AlertDialogDescription>
-              {toDelete?.full_name || toDelete?.email} deixará de conseguir entrar. Os dados criados por esta pessoa (agendamentos, contactos) permanecem. Esta ação não pode ser desfeita.
+              {toDelete?.full_name || toDelete?.email} deixará de conseguir entrar. Os dados criados por esta pessoa permanecem. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
