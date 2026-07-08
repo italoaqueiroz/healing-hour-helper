@@ -78,7 +78,7 @@ function ProInfanciaPage() {
 
   return (
     <AppShell
-      title="Pró Infância"
+      title="ProInfância"
       subtitle="Fichas de acompanhamento"
       actions={
         <Dialog open={creating} onOpenChange={setCreating}>
@@ -93,6 +93,12 @@ function ProInfanciaPage() {
       }
     >
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-5 space-y-3">
+        <Link to="/contactos-pro-infancia">
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Contact className="h-4 w-4" /> Contactos ProInfância
+          </Button>
+        </Link>
+
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[220px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
