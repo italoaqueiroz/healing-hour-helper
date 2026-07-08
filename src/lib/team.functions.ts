@@ -14,6 +14,7 @@ export type TeamMember = {
   created_at: string;
   last_sign_in_at: string | null;
   is_admin: boolean;
+  is_pi: boolean;
 };
 
 export const listTeam = createServerFn({ method: "GET" })
@@ -25,8 +26,9 @@ export const listTeam = createServerFn({ method: "GET" })
     const { data: usersRes, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (usersErr) throw new Error(usersErr.message);
 
-    const { data: rolesRes } = await supabaseAdmin.from("user_roles").select("user_id, role").eq("role", "admin");
-    const adminSet = new Set((rolesRes || []).map((r: any) => r.user_id));
+    const { data: rolesRes } = await supabaseAdmin.from("user_roles").select("user_id, role");
+    const adminSet = new Set((rolesRes || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id));
+    const piSet = new Set((rolesRes || []).filter((r: any) => r.role === "pro_infancia").map((r: any) => r.user_id));
 
     const { data: profilesRes } = await supabaseAdmin.from("profiles").select("id, full_name");
     const nameById = new Map((profilesRes || []).map((p: any) => [p.id, p.full_name]));
@@ -38,6 +40,7 @@ export const listTeam = createServerFn({ method: "GET" })
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
       is_admin: adminSet.has(u.id),
+      is_pi: piSet.has(u.id),
     }));
   });
 
@@ -76,6 +79,28 @@ export const setAdminRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const setPiRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; enable: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (data.enable) {
+      const { error } = await supabaseAdmin
+        .from("user_roles")
+        .upsert({ user_id: data.userId, role: "pro_infancia" }, { onConflict: "user_id,role" });
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", data.userId)
+        .eq("role", "pro_infancia");
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
 export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { email: string; fullName?: string }) => input)
@@ -102,7 +127,6 @@ export const updateTeamMemberName = createServerFn({ method: "POST" })
       .update({ full_name: name })
       .eq("id", data.userId);
     if (pErr) throw new Error(pErr.message);
-    // Also update auth user_metadata so future logins reflect the change
     const { error: uErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       user_metadata: { full_name: name },
     });
