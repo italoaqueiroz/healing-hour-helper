@@ -12,8 +12,8 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Agenda d'O Fio";
   const options = {
     body: payload.body || "Há uma nova atualização na agenda.",
-    icon: "/pwa-icon-512.png",
-    badge: "/pwa-icon-512.png",
+    icon: "/logo-fio.png",
+    badge: "/logo-fio.png",
     tag: payload.tag || "agenda-update",
     renotify: true,
     silent: false,
