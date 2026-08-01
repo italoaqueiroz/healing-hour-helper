@@ -426,6 +426,7 @@ export type Database = {
           created_by: string | null;
           ends_at: string;
           id: string;
+          kind: string;
           reason: string | null;
           starts_at: string;
           therapist_id: string;
@@ -435,6 +436,7 @@ export type Database = {
           created_by?: string | null;
           ends_at: string;
           id?: string;
+          kind?: string;
           reason?: string | null;
           starts_at: string;
           therapist_id: string;
@@ -444,6 +446,7 @@ export type Database = {
           created_by?: string | null;
           ends_at?: string;
           id?: string;
+          kind?: string;
           reason?: string | null;
           starts_at?: string;
           therapist_id?: string;
