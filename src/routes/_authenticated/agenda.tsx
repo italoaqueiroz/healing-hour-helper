@@ -50,6 +50,7 @@ type Appointment = {
   check_in_by: string | null;
   recurrence_group_id: string | null;
   profiles?: { full_name: string | null; email: string | null; color: string | null } | null;
+  co_profiles?: { full_name: string | null; email: string | null; color: string | null } | null;
 };
 
 export const Route = createFileRoute("/_authenticated/agenda")({
@@ -61,15 +62,23 @@ const HOURS = Array.from({ length: 13 }, (_, i) => 9 + i); // 09–21
 
 const EVENT_TYPES: Array<{ value: EventType; label: string; icon: string }> = [
   { value: "session",  label: "Sessão terapêutica", icon: "🧶" },
-  { value: "meeting",  label: "Reunião",            icon: "👥" },
   { value: "online",   label: "Consulta online",    icon: "💻" },
+  { value: "meeting",  label: "Reunião",            icon: "👥" },
   { value: "block",    label: "Bloqueio / Indisponível", icon: "⛔" },
   { value: "vacation", label: "Férias",             icon: "🌴" },
   { value: "other",    label: "Outro",              icon: "✦" },
 ];
 
+const CREATABLE_EVENT_TYPES = EVENT_TYPES.filter(
+  ({ value }) => value !== "block" && value !== "vacation",
+);
+
+function isCareEvent(eventType: EventType) {
+  return eventType === "session" || eventType === "online";
+}
+
 function eventLabel(a: Pick<Appointment, "patient_name" | "title" | "event_type">) {
-  if (a.event_type === "session") return a.patient_name || "—";
+  if (isCareEvent(a.event_type)) return a.patient_name || "—";
   return a.title || EVENT_TYPES.find((e) => e.value === a.event_type)?.label || "Evento";
 }
 
@@ -81,7 +90,19 @@ function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">):
   return "pending";
 }
 
-type Unavail = { id: string; therapist_id: string; starts_at: string; ends_at: string; reason: string | null };
+type UnavailabilityKind = "unavailable" | "block" | "vacation" | "other";
+type Unavail = { id: string; therapist_id: string; starts_at: string; ends_at: string; reason: string | null; kind: UnavailabilityKind };
+
+const UNAVAILABILITY_TYPES: Array<{ value: UnavailabilityKind; label: string }> = [
+  { value: "unavailable", label: "Indisponível" },
+  { value: "block", label: "Bloqueio de horário" },
+  { value: "vacation", label: "Férias" },
+  { value: "other", label: "Outro" },
+];
+
+function unavailabilityLabel(kind: UnavailabilityKind) {
+  return UNAVAILABILITY_TYPES.find((item) => item.value === kind)?.label || "Indisponível";
+}
 
 function AgendaPage() {
   const navigate = useNavigate();
@@ -172,7 +193,7 @@ function AgendaPage() {
     const end = addDays(startOfDay(d), 1).toISOString();
     const { data, error } = await supabase
       .from("appointments")
-      .select("*, profiles:therapist_id(full_name, email, color)")
+      .select("*, profiles:therapist_id(full_name, email, color), co_profiles:co_therapist_id(full_name, email, color)")
       .gte("starts_at", start)
       .lt("starts_at", end)
       .order("starts_at");
@@ -185,7 +206,7 @@ function AgendaPage() {
     const start = startOfDay(d).toISOString();
     const end = addDays(startOfDay(d), 1).toISOString();
     const { data } = await supabase.from("therapist_unavailability")
-      .select("id, therapist_id, starts_at, ends_at, reason")
+      .select("id, therapist_id, starts_at, ends_at, reason, kind")
       .lt("starts_at", end).gt("ends_at", start);
     setUnavail((data as Unavail[]) || []);
   }
@@ -394,7 +415,7 @@ function AgendaPage() {
             <div className="mt-3 flex items-stretch gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               <div className="flex shrink-0 items-center gap-1.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
                 <Ban className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Indisponíveis hoje</span>
+                <span className="hidden sm:inline">Ausências e bloqueios</span>
                 <span className="sm:hidden">Off</span>
                 <span className="tabular-nums">· {unavail.length}</span>
               </div>
@@ -415,6 +436,7 @@ function AgendaPage() {
                           className="group inline-flex items-center gap-1 rounded-md bg-background/70 px-1.5 py-0.5 text-[11px] tabular-nums"
                           title={u.reason || undefined}>
                           <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                          <span className="font-medium">{unavailabilityLabel(u.kind)}</span>
                           {format(parseISO(u.starts_at), "HH:mm")}–{format(parseISO(u.ends_at), "HH:mm")}
                           {u.reason && <span className="text-muted-foreground italic truncate max-w-[6rem]">· {u.reason}</span>}
                           {(isAdmin || u.therapist_id === userId) && (
@@ -483,7 +505,7 @@ function AgendaPage() {
 
       <Dialog open={openUnavail} onOpenChange={setOpenUnavail}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Marcar indisponibilidade</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Indisponibilidade</DialogTitle></DialogHeader>
           <UnavailabilityForm
             profiles={profiles}
             userId={userId}
@@ -580,10 +602,12 @@ function AppointmentCard({
   onOpen: (a: Appointment) => void;
 }) {
   const therapist = a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta";
+  const coTherapist = a.co_profiles?.full_name || a.co_profiles?.email?.split("@")[0] || null;
   const cancelled = a.attendance_status === "cancelled";
   const eff = effectiveStatus(a);
   const color = a.profiles?.color || undefined;
-  const isSession = a.event_type === "session";
+  const coColor = a.co_profiles?.color || undefined;
+  const isCare = isCareEvent(a.event_type);
   const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
   const checkedIn = !!a.check_in_at;
   const strikeInfo = strikeStyleFor(a.attendance_status);
@@ -598,13 +622,19 @@ function AppointmentCard({
           : "border border-border bg-background"
     } ${strikeInfo ? "status-strike" : ""}`}
       style={{
-        ...(cancelled ? {} : { borderLeftColor: color }),
+        ...(cancelled ? {} : {
+          borderLeftColor: color,
+          borderRightColor: coTherapist ? coColor : undefined,
+          background: coTherapist
+            ? `linear-gradient(90deg, color-mix(in oklab, ${color || "var(--color-primary)"} 10%, var(--color-background)) 0 50%, color-mix(in oklab, ${coColor || "var(--color-secondary)"} 14%, var(--color-background)) 50% 100%)`
+            : undefined,
+        }),
         ...(strikeInfo ? { ["--strike-color" as string]: strikeInfo.color } : {}),
       }}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className={`font-medium truncate flex items-center gap-1.5 ${cancelled ? "line-through" : ""}`}>
-            {!isSession && <span title={evt?.label}>{evt?.icon}</span>}
+            {a.event_type !== "session" && <span title={evt?.label}>{evt?.icon}</span>}
             {eventLabel(a)}
             {checkedIn && (
               <Badge className="bg-[var(--color-success)] text-[var(--color-success-foreground)] gap-1 px-1.5 py-0 text-[10px]">
@@ -615,15 +645,16 @@ function AppointmentCard({
           <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
             <span style={{ color }}>{therapist}</span>
+            {coTherapist && <><span> + </span><span style={{ color: coColor }}>{coTherapist}</span></>}
             {a.recurrence_group_id && <span className="ml-1 inline-flex items-center gap-0.5"><RotateCw className="h-3 w-3" />série</span>}
           </div>
           {a.notes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.notes}</div>}
         </div>
-        {isSession && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
+        {isCare && <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {isSession && !cancelled && (
+        {isCare && !cancelled && (
           <Button size="sm" variant={checkedIn ? "default" : "outline"}
             onClick={() => onCheckIn(a)}
             className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
@@ -631,7 +662,7 @@ function AppointmentCard({
             <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
           </Button>
         )}
-        {isSession && ATTENDANCE_OPTIONS.map((opt) => (
+        {isCare && ATTENDANCE_OPTIONS.map((opt) => (
           <Button key={opt.value} size="sm"
             variant={a.attendance_status === opt.value ? "default" : "outline"}
             disabled={!canEdit || cancelled}
@@ -823,7 +854,7 @@ function GridView({
                   {/* Unavailability bands (per therapist, shown in every room column) */}
                   {unavailBands.map((b) => (
                     <div key={`unav-${b.u.id}-${r.id}`}
-                      title={`${b.name} indisponível ${format(parseISO(b.u.starts_at), "HH:mm")}–${format(parseISO(b.u.ends_at), "HH:mm")}${b.u.reason ? " · " + b.u.reason : ""}`}
+                      title={`${b.name} · ${unavailabilityLabel(b.u.kind)} ${format(parseISO(b.u.starts_at), "HH:mm")}–${format(parseISO(b.u.ends_at), "HH:mm")}${b.u.reason ? " · " + b.u.reason : ""}`}
                       className="pointer-events-none absolute left-0 right-0"
                       style={{
                         top: b.top, height: b.height,
@@ -846,6 +877,9 @@ function GridView({
                     const cancelled = a.attendance_status === "cancelled";
                     const eff = effectiveStatus(a);
                     const color = a.profiles?.color || undefined;
+                    const coColor = a.co_profiles?.color || undefined;
+                    const coTherapist = a.co_profiles?.full_name || a.co_profiles?.email?.split("@")[0] || null;
+                    const careEvent = isCareEvent(a.event_type);
                     const compact = height < 44;
                     const isPast = endD.getTime() < now.getTime();
                     return (
@@ -862,7 +896,13 @@ function GridView({
                         }`}
                         style={{
                           top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
-                          ...(cancelled || isPast ? { borderLeftColor: color } : { borderLeftColor: color, background: `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))` }),
+                          ...(cancelled || isPast ? { borderLeftColor: color } : {
+                            borderLeftColor: color,
+                            borderRightColor: coTherapist ? coColor : undefined,
+                            background: coTherapist
+                              ? `linear-gradient(90deg, color-mix(in oklab, ${color || "var(--color-primary)"} 10%, var(--color-background)) 0 50%, color-mix(in oklab, ${coColor || "var(--color-secondary)"} 14%, var(--color-background)) 50% 100%)`
+                              : `color-mix(in oklab, ${color || "var(--color-primary)"} 8%, var(--color-background))`,
+                          }),
                         }}
                         title={`${format(startD, "HH:mm")}–${format(endD, "HH:mm")} · ${eventLabel(a)}`}
                       >
@@ -881,23 +921,24 @@ function GridView({
                             {!compact && (
                               <div className="text-[10px] truncate font-medium" style={!cancelled ? { color } : undefined}>
                                 {a.profiles?.full_name || a.profiles?.email?.split("@")[0] || "Terapeuta"}
+                                {coTherapist && <span style={{ color: coColor }}> + {coTherapist}</span>}
                               </div>
                             )}
                           </div>
-                          {a.event_type === "session" && !compact && (
+                          {careEvent && !compact && (
                             <StatusBadge status={eff} auto={a.attendance_status === "pending" && eff === "present"} />
                           )}
                         </div>
                         {canEdit(a) && !cancelled && height >= 72 && (
                           <div className="mt-1 flex flex-wrap gap-0.5">
-                            {a.event_type === "session" && (
+                            {careEvent && (
                               <button title={a.check_in_at ? "Desfazer check-in" : "Check-in"}
                                 onClick={(e) => { e.stopPropagation(); onCheckIn(a); }}
                                 className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.check_in_at ? "bg-[var(--color-success)] text-[var(--color-success-foreground)]" : "hover:bg-muted"}`}>
                                 <BellRing className="inline h-3 w-3" />
                               </button>
                             )}
-                            {a.event_type === "session" && ATTENDANCE_OPTIONS.map((opt) => (
+                            {careEvent && ATTENDANCE_OPTIONS.map((opt) => (
                               <button key={opt.value} title={opt.label}
                                 onClick={(e) => { e.stopPropagation(); onMark(a, opt.value); }}
                                 className={`rounded px-1 py-0.5 text-[10px] font-semibold ${a.attendance_status === opt.value ? opt.cls : "hover:bg-muted"}`}>
@@ -1186,7 +1227,7 @@ function NewAppointmentForm({
         <Select value={eventType} onValueChange={(v) => setEventType(v as EventType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            {EVENT_TYPES.map((t) => (
+            {CREATABLE_EVENT_TYPES.map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 <span className="inline-flex items-center gap-2">{t.icon} {t.label}</span>
               </SelectItem>
@@ -1410,8 +1451,7 @@ function EditAppointmentForm({
   const [title, setTitle] = useState(appt.title || "");
   const [notes, setNotes] = useState(appt.notes || "");
   const [saving, setSaving] = useState(false);
-  const isSession = appt.event_type === "session";
-  const needsPatient = isSession || appt.event_type === "online";
+  const needsPatient = isCareEvent(appt.event_type);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -1529,6 +1569,7 @@ function UnavailabilityForm({
   const [date, setDate] = useState(format(defaultDay, "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("13:00");
+  const [kind, setKind] = useState<UnavailabilityKind>("unavailable");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -1571,17 +1612,29 @@ function UnavailabilityForm({
       therapist_id: tid,
       starts_at: startISO,
       ends_at: endISO,
-      reason: reason.trim() || null,
+      kind,
+      reason: kind === "other" ? reason.trim() || null : null,
       created_by: userId,
     });
     setSaving(false);
     if (error) return toast.error(error.message);
-    toast.success("Indisponibilidade registada");
+    toast.success(`${unavailabilityLabel(kind)} registado`);
     onSaved();
   }
 
   return (
     <form onSubmit={submit} className="space-y-3">
+      <div>
+        <Label>Tipo</Label>
+        <Select value={kind} onValueChange={(value) => setKind(value as UnavailabilityKind)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {UNAVAILABILITY_TYPES.map((item) => (
+              <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div>
         <Label>Terapeuta</Label>
         <Select value={therapistId} onValueChange={setTherapistId} disabled={!isAdmin}>
@@ -1612,12 +1665,14 @@ function UnavailabilityForm({
           <Input id="unav-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
         </div>
       </div>
-      <div>
-        <Label htmlFor="unav-reason">Motivo (opcional)</Label>
-        <Input id="unav-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} placeholder="Ex.: consulta médica, formação…" />
-      </div>
+      {kind === "other" && (
+        <div>
+          <Label htmlFor="unav-reason">Motivo</Label>
+          <Input id="unav-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} placeholder="Ex.: formação, assunto pessoal…" required />
+        </div>
+      )}
       <Button type="submit" disabled={saving} className="w-full">
-        {saving ? "A guardar…" : "Marcar indisponibilidade"}
+        {saving ? "A guardar…" : `Marcar ${unavailabilityLabel(kind).toLowerCase()}`}
       </Button>
     </form>
   );

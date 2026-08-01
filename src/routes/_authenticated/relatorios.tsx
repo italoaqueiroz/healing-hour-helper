@@ -37,6 +37,8 @@ type Status =
 type Appt = {
   id: string;
   therapist_id: string;
+  co_therapist_id: string | null;
+  additional_therapist_ids: string[];
   patient_id: string | null;
   patient_name: string;
   starts_at: string;
@@ -103,18 +105,22 @@ function ReportsPage() {
     let q = supabase
       .from("appointments")
       .select(
-        "id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)",
+        "id, therapist_id, co_therapist_id, additional_therapist_ids, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)",
       )
       .gte("starts_at", start)
       .lte("starts_at", end)
       .order("starts_at");
     // Non-admin sees only own (RLS allows view-all of authenticated, but filter UX-wise)
     const tFilter = isAdmin ? therapistFilter : "self";
-    if (tFilter === "self") q = q.eq("therapist_id", userId!);
-    else if (tFilter !== "all") q = q.eq("therapist_id", tFilter);
     const { data, error } = await q;
     if (error) toast.error("Falha ao carregar relatório");
-    setAppts((data as unknown as Appt[]) || []);
+    const rows = (data as unknown as Appt[]) || [];
+    const selectedId = tFilter === "self" ? userId : tFilter === "all" ? null : tFilter;
+    setAppts(selectedId ? rows.filter((appointment) =>
+      appointment.therapist_id === selectedId ||
+      appointment.co_therapist_id === selectedId ||
+      (appointment.additional_therapist_ids || []).includes(selectedId)
+    ) : rows);
     setLoading(false);
   }
 
