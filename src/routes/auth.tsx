@@ -147,6 +147,15 @@ function AuthPage() {
         );
         if (error) throw error;
 
+        if (data.user && data.user.identities?.length === 0) {
+          setMode("forgot");
+          setNotice({
+            kind: "error",
+            message: "Já existe uma conta com este e-mail. Solicite abaixo um link para definir ou recuperar a senha.",
+          });
+          return;
+        }
+
         if (data.session) {
           await continueIfApproved(data.session.user.id);
           return;
