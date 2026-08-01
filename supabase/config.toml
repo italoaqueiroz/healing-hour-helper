@@ -1,4 +1,4 @@
-project_id = "mowptnlvgmyqcfcgtwie"
+project_id = "rwiogtidrjqszjbboarc"
 
 [functions.notify-appointment]
 verify_jwt = true
