@@ -118,13 +118,13 @@ function AgendaPage() {
     setOpenNew(true);
   }
 
-  async function moveAppt(a: Appointment, newRoomId: string, newHour: number) {
+  async function moveAppt(a: Appointment, newRoomId: string, newHour: number, newMinute = 0) {
     if (!canEdit(a)) return toast.error("Sem permissão para mover");
     const start = parseISO(a.starts_at);
     const end = parseISO(a.ends_at);
     const durationMs = end.getTime() - start.getTime();
     const newStart = new Date(start);
-    newStart.setHours(newHour, 0, 0, 0);
+    newStart.setHours(newHour, newMinute, 0, 0);
     const newEnd = new Date(newStart.getTime() + durationMs);
     const prev = { room_id: a.room_id, starts_at: a.starts_at, ends_at: a.ends_at };
     setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, room_id: newRoomId, starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() } : x));
@@ -715,7 +715,7 @@ function GridView({
   onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
   onCreateAt: (roomId: string, hour: number) => void;
-  onMove: (a: Appointment, newRoomId: string, newHour: number) => void;
+  onMove: (a: Appointment, newRoomId: string, newHour: number, newMinute?: number) => void;
   onOpen: (a: Appointment) => void;
   now: Date;
   day: Date;
@@ -782,23 +782,43 @@ function GridView({
                   {/* Hour bands (click to create, drop target) */}
                   {HOURS.map((h, i) => {
                     const key = `${r.id}:${h}`;
-                    const isOver = dragOver === key;
+                    const isOver = dragOver?.startsWith(`${key}:`) ?? false;
                     return (
                       <div key={h}
                         className={`absolute left-0 right-0 border-t border-border/60 cursor-pointer transition-colors ${isOver ? "bg-accent/40" : "hover:bg-muted/40"}`}
                         style={{ top: i * 60 * PX_PER_MIN, height: 60 * PX_PER_MIN }}
                         onClick={() => onCreateAt(r.id, h)}
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(key); }}
-                        onDragLeave={() => setDragOver((k) => k === key ? null : k)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const quarter = Math.min(3, Math.max(0, Math.floor(((e.clientY - rect.top) / rect.height) * 4)));
+                          setDragOver(`${key}:${quarter * 15}`);
+                        }}
+                        onDragLeave={() => setDragOver((k) => k?.startsWith(`${key}:`) ? null : k)}
                         onDrop={(e) => {
                           e.preventDefault(); setDragOver(null);
                           const id = e.dataTransfer.getData("text/plain");
                           const a = apptById.get(id);
-                          if (a && (a.room_id !== r.id || parseISO(a.starts_at).getHours() !== h)) onMove(a, r.id, h);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const quarter = Math.min(3, Math.max(0, Math.floor(((e.clientY - rect.top) / rect.height) * 4)));
+                          const minute = quarter * 15;
+                          const currentStart = a ? parseISO(a.starts_at) : null;
+                          if (a && currentStart && (a.room_id !== r.id || currentStart.getHours() !== h || currentStart.getMinutes() !== minute)) {
+                            onMove(a, r.id, h, minute);
+                          }
                         }}
                       />
                     );
                   })}
+
+                  {/* Quarter-hour guides used by drag-and-drop snapping. */}
+                  {HOURS.flatMap((h, i) => [15, 30, 45].map((minute) => (
+                    <div
+                      key={`quarter-${h}-${minute}`}
+                      className={`pointer-events-none absolute left-0 right-0 border-t ${minute === 30 ? "border-dashed border-border/30" : "border-dotted border-border/20"}`}
+                      style={{ top: (i * 60 + minute) * PX_PER_MIN }}
+                    />
+                  )))}
 
                   {/* Unavailability bands (per therapist, shown in every room column) */}
                   {unavailBands.map((b) => (
@@ -811,11 +831,6 @@ function GridView({
                         borderTop: "1px dashed rgba(100,116,139,0.55)",
                         borderBottom: "1px dashed rgba(100,116,139,0.55)",
                       }} />
-                  ))}
-
-                  {HOURS.map((h, i) => (
-                    <div key={`half-${h}`} className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-border/30"
-                      style={{ top: (i * 60 + 30) * PX_PER_MIN }} />
                   ))}
 
                   {/* Cards */}
