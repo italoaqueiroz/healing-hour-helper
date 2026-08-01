@@ -21,7 +21,7 @@ import { sendCheckInPush } from "@/lib/push.functions";
 import {
   ChevronLeft, ChevronRight, Plus, RotateCw, Trash2,
   Crown, LayoutGrid, Rows3, Star, Ban, CalendarIcon,
-  BellRing, Clock, Settings2,
+  BellRing, Clock, Settings2, LockKeyhole,
 } from "lucide-react";
 
 type Room = { id: string; name: string; position: number };
@@ -84,10 +84,11 @@ function eventLabel(a: Pick<Appointment, "patient_name" | "title" | "event_type"
 
 // Effective status: auto-mark as 'present' visually if pending and past +1h (cron persists)
 function effectiveStatus(a: Pick<Appointment, "attendance_status" | "ends_at">): Status {
-  if (a.attendance_status !== "pending") return a.attendance_status;
-  const ends = parseISO(a.ends_at).getTime();
-  if (ends + 60 * 60 * 1000 < Date.now()) return "present";
-  return "pending";
+  return a.attendance_status;
+}
+
+function isAppointmentLocked(a: Pick<Appointment, "ends_at">) {
+  return Date.now() >= parseISO(a.ends_at).getTime() + 60 * 60 * 1000;
 }
 
 type UnavailabilityKind = "unavailable" | "block" | "vacation" | "other";
@@ -222,18 +223,22 @@ function AgendaPage() {
   }
 
   function canEdit(a: Appointment) {
+    if (isAppointmentLocked(a)) return false;
     return isAdmin || a.therapist_id === userId || a.co_therapist_id === userId || (a.additional_therapist_ids || []).includes(userId || "");
   }
 
   async function toggleCheckIn(a: Appointment) {
+    if (!canEdit(a)) return toast.error("Esta sessão já está congelada.");
     const checking = !a.check_in_at;
     const newVal = checking ? new Date().toISOString() : null;
     const newBy  = checking ? userId : null;
-    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: newVal, check_in_by: newBy } : x));
+    const nextStatus: Status = checking ? "present" : a.attendance_status === "present" ? "pending" : a.attendance_status;
+    const markedAt = nextStatus === "pending" ? null : new Date().toISOString();
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: newVal, check_in_by: newBy, attendance_status: nextStatus, attendance_marked_at: markedAt } : x));
     const { error } = await supabase.from("appointments")
-      .update({ check_in_at: newVal, check_in_by: newBy }).eq("id", a.id);
+      .update({ check_in_at: newVal, check_in_by: newBy, attendance_status: nextStatus, attendance_marked_at: markedAt }).eq("id", a.id);
     if (error) {
-      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by, attendance_status: a.attendance_status, attendance_marked_at: a.attendance_marked_at } : x));
       return toast.error("Não foi possível registar check-in");
     }
     toast.success(checking
@@ -248,20 +253,25 @@ function AgendaPage() {
 
   async function markStatus(a: Appointment, status: Status) {
     if (!canEdit(a)) return;
-    const previous = a.attendance_status;
-    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: status, attendance_marked_at: new Date().toISOString() } : x));
+    const isPresent = status === "present";
+    const clearsCheckIn = !isPresent && status !== "pending";
+    const nextCheckIn = isPresent ? (a.check_in_at || new Date().toISOString()) : clearsCheckIn ? null : a.check_in_at;
+    const nextCheckInBy = nextCheckIn ? (a.check_in_by || userId) : null;
+    const markedAt = status === "pending" ? null : new Date().toISOString();
+    setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: status, attendance_marked_at: markedAt, check_in_at: nextCheckIn, check_in_by: nextCheckInBy } : x));
     const { error } = await supabase
       .from("appointments")
-      .update({ attendance_status: status, attendance_marked_at: new Date().toISOString() })
+      .update({ attendance_status: status, attendance_marked_at: markedAt, check_in_at: nextCheckIn, check_in_by: nextCheckInBy })
       .eq("id", a.id);
     if (error) {
-      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: previous } : x));
+      setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, attendance_status: a.attendance_status, attendance_marked_at: a.attendance_marked_at, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
       toast.error("Não foi possível atualizar");
     } else toast.success(statusLabel(status) + " registado");
   }
 
   async function deleteAppt(a: Appointment) {
-    if (!canEdit(a)) return;
+    if (!isAdmin) return toast.error("Apenas administradores podem eliminar sessões.");
+    if (isAppointmentLocked(a)) return toast.error("Esta sessão já está congelada.");
     if (!confirm(`Eliminar "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("id", a.id);
     if (error) return toast.error("Falha ao eliminar.");
@@ -270,7 +280,7 @@ function AgendaPage() {
   }
 
   async function deleteSeries(a: Appointment) {
-    if (!a.recurrence_group_id || !canEdit(a)) return;
+    if (!a.recurrence_group_id || !isAdmin || isAppointmentLocked(a)) return;
     if (!confirm(`Eliminar toda a série recorrente de "${eventLabel(a)}"?`)) return;
     const { error } = await supabase.from("appointments").delete().eq("recurrence_group_id", a.recurrence_group_id);
     if (error) return toast.error("Falha ao eliminar a série.");
@@ -472,6 +482,7 @@ function AgendaPage() {
                 appts={apptsByRoom.get(room.id) || []}
                 lead={leadByRoom.get(room.id) || null}
                 canEdit={canEdit}
+                canDelete={isAdmin}
                 onMark={markStatus}
                 onCheckIn={toggleCheckIn}
                 onDelete={deleteAppt}
@@ -482,7 +493,7 @@ function AgendaPage() {
             ))}
           </div>
         ) : (
-          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} unavail={unavail} profiles={profiles} canEdit={canEdit} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} />
+          <GridView rooms={rooms} appts={appts} leadByRoom={leadByRoom} unavail={unavail} profiles={profiles} canEdit={canEdit} canDelete={isAdmin} onMark={markStatus} onCheckIn={toggleCheckIn} onDelete={deleteAppt} onCreateAt={openCreateAt} onMove={moveAppt} onOpen={(a) => setEditing(a)} now={now} day={day} />
         )}
       </div>
 
@@ -531,12 +542,13 @@ function AgendaPage() {
 }
 
 function RoomColumn({
-  room, appts, lead, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate, onOpen,
+  room, appts, lead, canEdit, canDelete, onMark, onCheckIn, onDelete, onDeleteSeries, onCreate, onOpen,
 }: {
   room: Room;
   appts: Appointment[];
   lead: { therapist_id: string; name: string; count: number; color: string | null } | null;
   canEdit: (a: Appointment) => boolean;
+  canDelete: boolean;
   onMark: (a: Appointment, s: Status) => void;
   onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
@@ -573,6 +585,7 @@ function RoomColumn({
             key={a.id} a={a}
             highlighted={!!lead && a.therapist_id === lead.therapist_id}
             canEdit={canEdit(a)}
+            canDelete={canDelete}
             onMark={onMark} onCheckIn={onCheckIn} onDelete={onDelete} onDeleteSeries={onDeleteSeries}
             onOpen={onOpen}
           />
@@ -590,11 +603,12 @@ const ATTENDANCE_OPTIONS: Array<{ value: Status; sigla: string; label: string; c
 ];
 
 function AppointmentCard({
-  a, highlighted, canEdit, onMark, onCheckIn, onDelete, onDeleteSeries, onOpen,
+  a, highlighted, canEdit, canDelete, onMark, onCheckIn, onDelete, onDeleteSeries, onOpen,
 }: {
   a: Appointment;
   highlighted: boolean;
   canEdit: boolean;
+  canDelete: boolean;
   onMark: (a: Appointment, s: Status) => void;
   onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
@@ -610,6 +624,7 @@ function AppointmentCard({
   const isCare = isCareEvent(a.event_type);
   const evt = EVENT_TYPES.find((e) => e.value === a.event_type);
   const checkedIn = !!a.check_in_at;
+  const locked = isAppointmentLocked(a);
   const strikeInfo = strikeStyleFor(a.attendance_status);
   return (
     <div
@@ -641,6 +656,11 @@ function AppointmentCard({
                 <BellRing className="h-2.5 w-2.5" />na recepção
               </Badge>
             )}
+            {locked && (
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px]">
+                <LockKeyhole className="h-2.5 w-2.5" />congelado
+              </Badge>
+            )}
           </div>
           <div className={`text-xs text-muted-foreground ${cancelled ? "line-through" : ""}`}>
             {format(parseISO(a.starts_at), "HH:mm")}–{format(parseISO(a.ends_at), "HH:mm")} ·{" "}
@@ -657,6 +677,7 @@ function AppointmentCard({
         {isCare && !cancelled && (
           <Button size="sm" variant={checkedIn ? "default" : "outline"}
             onClick={() => onCheckIn(a)}
+            disabled={!canEdit}
             className={checkedIn ? "bg-[var(--color-success)] text-[var(--color-success-foreground)] hover:opacity-90" : ""}
             title={checkedIn ? "Desfazer check-in" : "Marcar que o cliente chegou na receção"}>
             <BellRing className="h-3.5 w-3.5 mr-1" />{checkedIn ? "Chegou" : "Check-in"}
@@ -672,7 +693,7 @@ function AppointmentCard({
             {opt.sigla}
           </Button>
         ))}
-        {canEdit && (
+        {canDelete && !locked && (
           <div className="ml-auto flex gap-1">
             {a.recurrence_group_id && (
               <Button size="sm" variant="ghost" title="Eliminar toda a série"
@@ -734,7 +755,7 @@ function layoutLanes(items: Appointment[]) {
 }
 
 function GridView({
-  rooms, appts, leadByRoom, unavail, profiles, canEdit, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
+  rooms, appts, leadByRoom, unavail, profiles, canEdit, canDelete, onMark, onCheckIn, onDelete, onCreateAt, onMove, onOpen,
   now, day,
 }: {
   rooms: Room[]; appts: Appointment[];
@@ -742,6 +763,7 @@ function GridView({
   unavail: Unavail[];
   profiles: Profile[];
   canEdit: (a: Appointment) => boolean;
+  canDelete: boolean;
   onMark: (a: Appointment, s: Status) => void;
   onCheckIn: (a: Appointment) => void;
   onDelete: (a: Appointment) => void;
@@ -947,8 +969,10 @@ function GridView({
                             ))}
                             <button title="Cancelar" onClick={(e) => { e.stopPropagation(); onMark(a, "cancelled"); }}
                               className="rounded p-0.5 hover:bg-muted"><Ban className="h-3 w-3 text-muted-foreground" /></button>
-                            <button title="Eliminar" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
-                              className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                            {canDelete && (
+                              <button title="Eliminar" onClick={(e) => { e.stopPropagation(); onDelete(a); }}
+                                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                            )}
                           </div>
                         )}
                         {canEdit(a) && cancelled && (
