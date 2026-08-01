@@ -2,3 +2,6 @@ project_id = "rwiogtidrjqszjbboarc"
 
 [functions.notify-appointment]
 verify_jwt = true
+
+[functions.monthly-therapist-reports]
+verify_jwt = true
