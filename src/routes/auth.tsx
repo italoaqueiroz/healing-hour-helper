@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarCheck, CircleAlert, Loader2, MailCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, CircleAlert, Loader2, MailCheck } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    pending: search.pending === "1" ? "1" : undefined,
+    invite: search.invite === "1" ? "1" : undefined,
+    recovery: search.recovery === "1" ? "1" : undefined,
+  }),
   head: () => ({ meta: [{ title: "Entrar · Clínica Agenda" }] }),
   component: AuthPage,
 });
@@ -44,13 +49,15 @@ function authErrorMessage(error: unknown): string {
   if (normalized.includes("missing oauth secret")) {
     return "O acesso com Google ainda precisa ser concluído no Supabase.";
   }
-  if (normalized.includes("rate limit")) return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+  if (normalized.includes("rate limit"))
+    return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
 
   return message || "Não foi possível concluir. Tente novamente.";
 }
 
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,15 +66,42 @@ function AuthPage() {
   const [pending, setPending] = useState<PendingAction>(null);
   const [notice, setNotice] = useState<Notice>(null);
 
+  const continueIfApproved = useCallback(
+    async (userId: string) => {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("approved")
+        .eq("id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (profile?.approved) {
+        navigate({ to: "/agenda", replace: true });
+        return true;
+      }
+      await supabase.auth.signOut();
+      setNotice({
+        kind: "success",
+        message: "Conta criada. O acesso aguarda aprovação de um administrador da clínica.",
+      });
+      return false;
+    },
+    [navigate],
+  );
+
   useEffect(() => {
-    const isRecovery =
-      window.location.search.includes("recovery=1") ||
-      window.location.hash.includes("type=recovery");
+    const isRecovery = search.recovery === "1" || window.location.hash.includes("type=recovery");
 
     if (isRecovery) setMode("update-password");
 
+    if (search.pending === "1") {
+      setNotice({
+        kind: "success",
+        message: "A sua conta aguarda aprovação de um administrador da clínica.",
+      });
+    }
+
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session && !isRecovery) navigate({ to: "/agenda", replace: true });
+      if (data.session && !isRecovery) void continueIfApproved(data.session.user.id);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
@@ -76,11 +110,11 @@ function AuthPage() {
         setNotice(null);
         return;
       }
-      if (session) navigate({ to: "/agenda", replace: true });
+      if (session) void continueIfApproved(session.user.id);
     });
 
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, [continueIfApproved, search.pending, search.recovery]);
 
   function changeMode(nextMode: AuthMode) {
     setMode(nextMode);
@@ -114,13 +148,14 @@ function AuthPage() {
         if (error) throw error;
 
         if (data.session) {
-          navigate({ to: "/agenda", replace: true });
+          await continueIfApproved(data.session.user.id);
           return;
         }
 
         setNotice({
           kind: "success",
-          message: "Conta criada. Enviámos um e-mail para confirmar o endereço.",
+          message:
+            "Conta criada. Confirme o e-mail; depois, o acesso aguardará aprovação da clínica.",
         });
         return;
       }
@@ -129,7 +164,7 @@ function AuthPage() {
         supabase.auth.signInWithPassword({ email, password }),
       );
       if (error) throw error;
-      if (data.session) navigate({ to: "/agenda", replace: true });
+      if (data.session) await continueIfApproved(data.session.user.id);
     } catch (error) {
       setNotice({ kind: "error", message: authErrorMessage(error) });
     } finally {
@@ -213,7 +248,7 @@ function AuthPage() {
       <Card className="w-full max-w-md p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-md bg-primary text-primary-foreground">
-            <CalendarCheck className="h-5 w-5" />
+            <img src="/logo-fio.png" alt="" className="h-7 w-7 object-contain" />
           </div>
           <span className="font-semibold tracking-tight">Clínica · Agenda</span>
         </div>
@@ -221,9 +256,15 @@ function AuthPage() {
         {isPrimaryMode ? (
           <>
             <h1 className="text-2xl font-semibold">Aceder à agenda</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Entre ou crie a sua conta profissional.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Entre ou solicite uma conta profissional.
+            </p>
 
-            <Tabs value={mode} onValueChange={(value) => changeMode(value as AuthMode)} className="mt-6">
+            <Tabs
+              value={mode}
+              onValueChange={(value) => changeMode(value as AuthMode)}
+              className="mt-6"
+            >
               <TabsList className="grid w-full grid-cols-2 rounded-md">
                 <TabsTrigger value="signin">Entrar</TabsTrigger>
                 <TabsTrigger value="signup">Criar conta</TabsTrigger>
@@ -237,7 +278,11 @@ function AuthPage() {
               onClick={handleGoogle}
               disabled={isBusy}
             >
-              {pending === "google" ? <Loader2 className="animate-spin" /> : <span aria-hidden="true">G</span>}
+              {pending === "google" ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <span aria-hidden="true">G</span>
+              )}
               Continuar com Google
             </Button>
 
@@ -326,7 +371,9 @@ function AuthPage() {
           <>
             <BackButton onClick={() => changeMode("signin")} />
             <h1 className="mt-5 text-2xl font-semibold">Recuperar senha</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Receba um link seguro no seu e-mail.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Receba um link seguro no seu e-mail.
+            </p>
 
             <form onSubmit={handleResetRequest} className="mt-6 space-y-4">
               <div className="space-y-2">
@@ -351,7 +398,9 @@ function AuthPage() {
         ) : (
           <>
             <h1 className="text-2xl font-semibold">Definir nova senha</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Escolha uma nova senha para a sua conta.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Escolha uma nova senha para a sua conta.
+            </p>
 
             <form onSubmit={handlePasswordUpdate} className="mt-6 space-y-4">
               <div className="space-y-2">

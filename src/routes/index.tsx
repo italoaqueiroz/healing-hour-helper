@@ -3,7 +3,6 @@ import { Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import logoAsset from "@/assets/logo-fio-ariana.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,15 +19,27 @@ const QUOTES: { text: string; author: string }[] = [
   { text: "Só sei que nada sei.", author: "Sócrates" },
   { text: "Não és aquilo que te acontece, és aquilo que escolhes ser.", author: "Carl Jung" },
   { text: "O que não te mata torna-te mais forte.", author: "Friedrich Nietzsche" },
-  { text: "A vida é o que fazemos dela. As viagens são os viajantes. O que vemos não é o que vemos, senão o que somos.", author: "Fernando Pessoa" },
+  {
+    text: "A vida é o que fazemos dela. As viagens são os viajantes. O que vemos não é o que vemos, senão o que somos.",
+    author: "Fernando Pessoa",
+  },
   { text: "Penso, logo existo.", author: "René Descartes" },
   { text: "Tudo o que somos é o resultado do que pensamos.", author: "Buda" },
   { text: "A felicidade depende de nós mesmos.", author: "Aristóteles" },
   { text: "Não há vento favorável para o marinheiro que não sabe onde ir.", author: "Séneca" },
   { text: "O homem é a medida de todas as coisas.", author: "Protágoras" },
-  { text: "A vida só pode ser compreendida olhando-se para trás, mas só pode ser vivida olhando-se para a frente.", author: "Søren Kierkegaard" },
-  { text: "Aquele que tem um porquê para viver pode suportar quase qualquer como.", author: "Friedrich Nietzsche" },
-  { text: "A maior glória em viver não está em nunca cair, mas em levantar-se cada vez que caímos.", author: "Nelson Mandela" },
+  {
+    text: "A vida só pode ser compreendida olhando-se para trás, mas só pode ser vivida olhando-se para a frente.",
+    author: "Søren Kierkegaard",
+  },
+  {
+    text: "Aquele que tem um porquê para viver pode suportar quase qualquer como.",
+    author: "Friedrich Nietzsche",
+  },
+  {
+    text: "A maior glória em viver não está em nunca cair, mas em levantar-se cada vez que caímos.",
+    author: "Nelson Mandela",
+  },
   { text: "Onde há amor, há vida.", author: "Mahatma Gandhi" },
 ];
 
@@ -53,7 +64,11 @@ function Landing() {
       <header className="border-b border-border/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
-            <img src={logoAsset.url} alt="Fio de Ariana" className="h-10 w-auto shrink-0" />
+            <img
+              src="/logo-fio.png"
+              alt="O Fio de Ariana"
+              className="h-10 w-10 shrink-0 object-contain"
+            />
             <span className="truncate font-display text-lg font-semibold tracking-tight sm:text-xl">
               Agenda · Fio de Ariana
             </span>
@@ -103,7 +118,9 @@ function Landing() {
 
         <div className="mt-14">
           <Link to="/agenda">
-            <Button size="lg" className="font-semibold">Abrir a agenda</Button>
+            <Button size="lg" className="font-semibold">
+              Abrir a agenda
+            </Button>
           </Link>
         </div>
       </main>

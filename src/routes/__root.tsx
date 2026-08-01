@@ -21,9 +21,7 @@ function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          A redirecionar...
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">A redirecionar...</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Esta página já não existe. Vamos levar-te para a entrada da agenda.
         </p>
@@ -97,7 +95,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "icon", type: "image/png", href: "/pwa-icon-512.png" },
+      { rel: "icon", type: "image/png", href: "/logo-fio.png" },
       { rel: "apple-touch-icon", href: "/pwa-icon-maskable.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
