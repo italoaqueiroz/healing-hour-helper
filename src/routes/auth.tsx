@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,11 +53,6 @@ function AuthPage() {
     }
   }
 
-  async function handleGoogle() {
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (r.error) toast.error("Não foi possível entrar com Google");
-  }
-
   return (
     <div className="min-h-screen grid place-items-center bg-background px-4">
       <Card className="w-full max-w-md p-8">
@@ -73,15 +67,7 @@ function AuthPage() {
           {mode === "signin" ? "Acesse sua agenda terapêutica." : "Cadastre-se como terapeuta."}
         </p>
 
-        <Button type="button" variant="outline" className="mt-6 w-full" onClick={handleGoogle}>
-          Continuar com Google
-        </Button>
-
-        <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="h-px flex-1 bg-border" /> ou <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           {mode === "signup" && (
             <div>
               <Label htmlFor="name">Nome completo</Label>
