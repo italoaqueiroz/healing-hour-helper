@@ -144,7 +144,8 @@ function EquipaPage() {
     if (!toDelete) return;
     setBusy(true);
     try {
-      await doDelete({ data: { userId: toDelete.id } });
+      const result = await doDelete({ data: { userId: toDelete.id } });
+      if (!result.ok) throw new Error(result.error || "Não foi possível remover o acesso.");
       toast.success("Utilizador removido");
       setToDelete(null);
       await load();
@@ -159,9 +160,10 @@ function EquipaPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await doInvite({
+      const result = await doInvite({
         data: { email: inviteEmail.trim(), fullName: inviteName.trim() || undefined },
       });
+      if (!result.ok) throw new Error(result.error || "Não foi possível enviar o convite.");
       toast.success("Convite do site enviado por e-mail");
       setInviteOpen(false);
       setInviteEmail("");
