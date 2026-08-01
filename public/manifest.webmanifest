@@ -3,6 +3,7 @@
   "short_name": "Agenda d'O Fio",
   "description": "Agenda terapêutica d'O Fio de Ariana",
   "start_url": "/agenda",
+  "id": "/agenda",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
