@@ -5,7 +5,13 @@ import { pt } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, FileText } from "lucide-react";
@@ -20,8 +26,14 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 
 type Profile = { id: string; full_name: string | null; email: string | null; color: string | null };
 type Status =
-  | "pending" | "present" | "absent" | "rescheduled" | "cancelled"
-  | "absent_therapist" | "absent_unjustified" | "absent_justified";
+  | "pending"
+  | "present"
+  | "absent"
+  | "rescheduled"
+  | "cancelled"
+  | "absent_therapist"
+  | "absent_unjustified"
+  | "absent_justified";
 type Appt = {
   id: string;
   therapist_id: string;
@@ -61,9 +73,15 @@ function ReportsPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { navigate({ to: "/auth" }); return; }
+      if (!data.user) {
+        navigate({ to: "/auth" });
+        return;
+      }
       setUserId(data.user.id);
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id);
       const admin = !!roles?.some((r) => r.role === "admin");
       setIsAdmin(admin);
       if (admin) {
@@ -84,8 +102,11 @@ function ReportsPage() {
     const end = endOfMonth(month).toISOString();
     let q = supabase
       .from("appointments")
-      .select("id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)")
-      .gte("starts_at", start).lte("starts_at", end)
+      .select(
+        "id, therapist_id, patient_id, patient_name, starts_at, ends_at, attendance_status, profiles:therapist_id(full_name, email), patients:patient_id(registration_number)",
+      )
+      .gte("starts_at", start)
+      .lte("starts_at", end)
       .order("starts_at");
     // Non-admin sees only own (RLS allows view-all of authenticated, but filter UX-wise)
     const tFilter = isAdmin ? therapistFilter : "self";
@@ -103,7 +124,8 @@ function ReportsPage() {
     appts.forEach((a) => {
       const key = a.patient_id || a.patient_name;
       const cur = m.get(key) || { name: a.patient_name, rows: [] };
-      cur.rows.push(a); m.set(key, cur);
+      cur.rows.push(a);
+      m.set(key, cur);
     });
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [appts]);
@@ -114,8 +136,10 @@ function ReportsPage() {
     appts.forEach((a) => {
       const e = effective(a.attendance_status, a.ends_at);
       const s = sigla(e);
-      if (s === "P") c.P++; else if (s === "FT") c.FT++;
-      else if (s === "FI") c.FI++; else if (s === "FJ") c.FJ++;
+      if (s === "P") c.P++;
+      else if (s === "FT") c.FT++;
+      else if (s === "FI") c.FI++;
+      else if (s === "FJ") c.FJ++;
       else if (s === "C") c.C++;
       c.total++;
     });
@@ -124,7 +148,7 @@ function ReportsPage() {
 
   async function loadLogoDataUrl(): Promise<string | null> {
     try {
-      const res = await fetch("/logo-fio-ariana.png");
+      const res = await fetch("/logo-fio.png");
       if (!res.ok) return null;
       const blob = await res.blob();
       return await new Promise<string>((resolve, reject) => {
@@ -142,29 +166,42 @@ function ReportsPage() {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const w = doc.internal.pageSize.getWidth();
     const tFilter = isAdmin ? therapistFilter : "self";
-    const therapistName = tFilter === "all"
-      ? "Todos os terapeutas"
-      : tFilter === "self"
-        ? (profiles.find((p) => p.id === userId)?.full_name || "Meu relatório")
-        : (profiles.find((p) => p.id === tFilter)?.full_name || "Terapeuta");
+    const therapistName =
+      tFilter === "all"
+        ? "Todos os terapeutas"
+        : tFilter === "self"
+          ? profiles.find((p) => p.id === userId)?.full_name || "Meu relatório"
+          : profiles.find((p) => p.id === tFilter)?.full_name || "Terapeuta";
 
     // Logo (top-right)
     const logo = await loadLogoDataUrl();
     if (logo) {
-      try { doc.addImage(logo, "PNG", w - 40 - 56, 30, 56, 56); } catch { /* ignore */ }
+      try {
+        doc.addImage(logo, "PNG", w - 40 - 56, 30, 56, 56);
+      } catch {
+        /* ignore */
+      }
     }
 
-    doc.setFont("helvetica", "bold"); doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
     doc.text("O Fio de Ariana — Relatório mensal de presenças", 40, 50);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
     doc.text(`${format(month, "MMMM 'de' yyyy", { locale: pt })}`, 40, 70);
     doc.text(`Terapeuta: ${therapistName}`, 40, 86);
     doc.text(
       `Total: ${summary.total}   |   P: ${summary.P}   FT: ${summary.FT}   FI: ${summary.FI}   FJ: ${summary.FJ}   Cancelados: ${summary.C}`,
-      40, 102
+      40,
+      102,
     );
-    doc.setFontSize(9); doc.setTextColor(120);
-    doc.text("P=Presente · FT=Falta do técnico · FI=Falta injustificada · FJ=Falta justificada · C=Cancelado", 40, 116);
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(
+      "P=Presente · FT=Falta do técnico · FI=Falta injustificada · FJ=Falta justificada · C=Cancelado",
+      40,
+      116,
+    );
     doc.setTextColor(0);
 
     const body = appts
@@ -204,28 +241,42 @@ function ReportsPage() {
       subtitle="Folha de presenças"
       actions={
         <Button size="sm" onClick={downloadPdf} disabled={appts.length === 0}>
-          <Download className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">PDF</span>
+          <Download className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline">PDF</span>
         </Button>
       }
     >
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5">{void navigate}
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5">
+        {void navigate}
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground">Mês</label>
-            <input type="month" className="block h-10 rounded-md border border-input bg-background px-3 text-sm"
+            <input
+              type="month"
+              className="block h-10 rounded-md border border-input bg-background px-3 text-sm"
               value={format(month, "yyyy-MM")}
-              onChange={(e) => { const [y, m] = e.target.value.split("-"); setMonth(new Date(Number(y), Number(m) - 1, 1)); }} />
+              onChange={(e) => {
+                const [y, m] = e.target.value.split("-");
+                setMonth(new Date(Number(y), Number(m) - 1, 1));
+              }}
+            />
           </div>
           {isAdmin && (
             <div className="min-w-[240px]">
-              <label className="text-xs uppercase tracking-wider text-muted-foreground">Terapeuta</label>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Terapeuta
+              </label>
               <Select value={therapistFilter} onValueChange={setTherapistFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os terapeutas</SelectItem>
                   <SelectItem value="self">Apenas eu</SelectItem>
                   {profiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.full_name || p.email?.split("@")[0]}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.full_name || p.email?.split("@")[0]}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -234,11 +285,26 @@ function ReportsPage() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <Card className="p-3"><div className="text-xs text-muted-foreground">Total</div><div className="font-display text-2xl">{summary.total}</div></Card>
-          <Card className="p-3"><div className="text-xs text-muted-foreground">P · Presentes</div><div className="font-display text-2xl text-[var(--color-success)]">{summary.P}</div></Card>
-          <Card className="p-3"><div className="text-xs text-muted-foreground">FT · Falta téc.</div><div className="font-display text-2xl text-[var(--color-warning)]">{summary.FT}</div></Card>
-          <Card className="p-3"><div className="text-xs text-muted-foreground">FI · Injustif.</div><div className="font-display text-2xl text-destructive">{summary.FI}</div></Card>
-          <Card className="p-3"><div className="text-xs text-muted-foreground">FJ · Justif.</div><div className="font-display text-2xl">{summary.FJ}</div></Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="font-display text-2xl">{summary.total}</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">P · Presentes</div>
+            <div className="font-display text-2xl text-[var(--color-success)]">{summary.P}</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">FT · Falta téc.</div>
+            <div className="font-display text-2xl text-[var(--color-warning)]">{summary.FT}</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">FI · Injustif.</div>
+            <div className="font-display text-2xl text-destructive">{summary.FI}</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">FJ · Justif.</div>
+            <div className="font-display text-2xl">{summary.FJ}</div>
+          </Card>
         </div>
 
         {loading ? (
@@ -268,15 +334,22 @@ function ReportsPage() {
                         {g.rows.map((a) => {
                           const s = sigla(effective(a.attendance_status, a.ends_at));
                           const cls =
-                            s === "P" ? "bg-[var(--color-success)]/20 text-[var(--color-success)]" :
-                            s === "FT" ? "bg-[var(--color-warning)]/20 text-[var(--color-warning)]" :
-                            s === "FI" ? "bg-destructive/20 text-destructive" :
-                            s === "FJ" ? "bg-secondary text-secondary-foreground" :
-                            "bg-muted text-muted-foreground";
+                            s === "P"
+                              ? "bg-[var(--color-success)]/20 text-[var(--color-success)]"
+                              : s === "FT"
+                                ? "bg-[var(--color-warning)]/20 text-[var(--color-warning)]"
+                                : s === "FI"
+                                  ? "bg-destructive/20 text-destructive"
+                                  : s === "FJ"
+                                    ? "bg-secondary text-secondary-foreground"
+                                    : "bg-muted text-muted-foreground";
                           return (
-                            <Badge key={a.id} variant="outline"
+                            <Badge
+                              key={a.id}
+                              variant="outline"
                               className={`text-[10px] font-bold ${cls} border-transparent`}
-                              title={`${format(parseISO(a.starts_at), "dd/MM HH:mm")} — ${a.profiles?.full_name || ""}`}>
+                              title={`${format(parseISO(a.starts_at), "dd/MM HH:mm")} — ${a.profiles?.full_name || ""}`}
+                            >
                               {format(parseISO(a.starts_at), "dd/MM")} {s}
                             </Badge>
                           );
