@@ -1,8 +1,10 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { formatDistanceToNow } from "date-fns";
 import { pt } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { registerPushSubscription } from "@/lib/push.functions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +27,7 @@ import {
   Baby,
 } from "lucide-react";
 import { IosInstallBanner } from "./ios-install-banner";
+import { toast } from "sonner";
 
 type NavItem = {
   to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa";
@@ -51,6 +54,24 @@ type AppNotification = {
   created_at: string;
 };
 
+const VAPID_PUBLIC_KEY =
+  "BI0MZj97iGBmVM0rHDxM5QpGFxNbYQcR-40sQxk2XzQLjuc4iMXAQEOFyU2AkiCQVjMbEZq3oGCUlBQtiG1kMFw";
+
+function vapidKeyBytes(value: string) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+function isIosWithoutInstalledApp() {
+  if (typeof window === "undefined") return false;
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return isIos && !standalone;
+}
+
 export function AppShell({
   title,
   subtitle,
@@ -63,6 +84,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  const savePushSubscription = useServerFn(registerPushSubscription);
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [userName, setUserName] = useState("Terapeuta");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -75,6 +97,33 @@ export function AppShell({
       ? Notification.permission
       : "unsupported",
   );
+
+  const subscribeDevice = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      throw new Error("Este dispositivo não suporta notificações push.");
+    }
+    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const subscription =
+      existing ||
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKeyBytes(VAPID_PUBLIC_KEY),
+      }));
+    const json = subscription.toJSON();
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) {
+      throw new Error("Não foi possível registar este dispositivo.");
+    }
+    await savePushSubscription({
+      data: {
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+        userAgent: navigator.userAgent,
+      },
+    });
+  }, [savePushSubscription]);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -100,6 +149,10 @@ export function AppShell({
         .order("created_at", { ascending: false })
         .limit(20);
       setNotifications((initialNotifications as AppNotification[] | null) || []);
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        void subscribeDevice().catch(() => {});
+      }
     });
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -118,13 +171,6 @@ export function AppShell({
           (payload) => {
             const notification = payload.new as AppNotification;
             setNotifications((current) => [notification, ...current].slice(0, 20));
-            if ("Notification" in window && Notification.permission === "granted") {
-              new Notification(notification.title, {
-                body: notification.message,
-                icon: "/pwa-icon-512.png",
-                tag: notification.id,
-              });
-            }
           },
         )
         .subscribe();
@@ -133,7 +179,7 @@ export function AppShell({
     return () => {
       if (channel) void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [subscribeDevice]);
 
   const unreadCount = notifications.filter((notification) => !notification.read_at).length;
 
@@ -161,9 +207,26 @@ export function AppShell({
   }
 
   async function enableBrowserNotifications() {
-    if (!("Notification" in window)) return;
-    const permission = await Notification.requestPermission();
-    setBrowserPermission(permission);
+    if (isIosWithoutInstalledApp()) {
+      toast.info("No iPhone, adicione primeiro a Agenda à tela inicial e abra pelo novo ícone.");
+      return;
+    }
+    if (!("Notification" in window)) {
+      toast.error("Este dispositivo não suporta notificações.");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setBrowserPermission(permission);
+      if (permission !== "granted") {
+        toast.error("Permissão de notificações não concedida.");
+        return;
+      }
+      await subscribeDevice();
+      toast.success("Notificações ativadas neste dispositivo.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível ativar notificações.");
+    }
   }
 
   async function signOut() {
@@ -233,7 +296,7 @@ export function AppShell({
                   )}
                 </div>
                 <DropdownMenuSeparator className="m-0" />
-                {browserPermission === "default" && (
+                {(browserPermission === "default" || browserPermission === "unsupported") && (
                   <>
                     <DropdownMenuItem
                       onSelect={enableBrowserNotifications}
@@ -244,6 +307,16 @@ export function AppShell({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="m-0" />
                   </>
+                )}
+                {browserPermission === "granted" && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    Avisos push ativos neste dispositivo.
+                  </div>
+                )}
+                {browserPermission === "denied" && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    Avisos bloqueados nas definições do dispositivo.
+                  </div>
                 )}
                 <div className="max-h-80 overflow-y-auto p-1.5">
                   {notifications.length === 0 ? (
