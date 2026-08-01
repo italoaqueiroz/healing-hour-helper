@@ -247,8 +247,8 @@ function AuthPage() {
     <div className="grid min-h-screen place-items-center bg-background px-4 py-8">
       <Card className="w-full max-w-md p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-md bg-primary text-primary-foreground">
-            <img src="/logo-fio.png" alt="" className="h-7 w-7 object-contain" />
+          <div className="grid h-10 w-10 place-items-center">
+            <img src="/logo-fio.png" alt="" className="h-9 w-9 object-contain" />
           </div>
           <span className="font-semibold tracking-tight">Clínica · Agenda</span>
         </div>
