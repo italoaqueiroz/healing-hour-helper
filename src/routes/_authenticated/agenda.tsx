@@ -212,7 +212,9 @@ function AgendaPage() {
       setAppts((cur) => cur.map((x) => x.id === a.id ? { ...x, check_in_at: a.check_in_at, check_in_by: a.check_in_by } : x));
       return toast.error("Não foi possível registar check-in");
     }
-    toast.success(checking ? `${eventLabel(a)} marcado como presente na recepção` : "Check-in removido");
+    toast.success(checking
+      ? `${eventLabel(a)} chegou. Terapeuta(s) notificado(s).`
+      : "Check-in removido");
   }
 
   async function markStatus(a: Appointment, status: Status) {
