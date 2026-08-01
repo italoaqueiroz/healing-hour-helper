@@ -15,6 +15,7 @@ export type TeamMember = {
   last_sign_in_at: string | null;
   is_admin: boolean;
   is_pi: boolean;
+  approved: boolean;
 };
 
 export const listTeam = createServerFn({ method: "GET" })
@@ -23,24 +24,39 @@ export const listTeam = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: usersRes, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const { data: usersRes, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 200,
+    });
     if (usersErr) throw new Error(usersErr.message);
 
     const { data: rolesRes } = await supabaseAdmin.from("user_roles").select("user_id, role");
-    const adminSet = new Set((rolesRes || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id));
-    const piSet = new Set((rolesRes || []).filter((r: any) => r.role === "pro_infancia").map((r: any) => r.user_id));
+    const adminSet = new Set(
+      (rolesRes || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id),
+    );
+    const piSet = new Set(
+      (rolesRes || []).filter((r: any) => r.role === "pro_infancia").map((r: any) => r.user_id),
+    );
 
-    const { data: profilesRes } = await supabaseAdmin.from("profiles").select("id, full_name");
+    const { data: profilesRes } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, approved");
     const nameById = new Map((profilesRes || []).map((p: any) => [p.id, p.full_name]));
+    const approvedById = new Map((profilesRes || []).map((p: any) => [p.id, p.approved]));
 
     return usersRes.users.map((u) => ({
       id: u.id,
       email: u.email ?? null,
-      full_name: (nameById.get(u.id) as string) || (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || null,
+      full_name:
+        (nameById.get(u.id) as string) ||
+        (u.user_metadata?.full_name as string) ||
+        (u.user_metadata?.name as string) ||
+        null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
       is_admin: adminSet.has(u.id),
       is_pi: piSet.has(u.id),
+      approved: approvedById.get(u.id) === true,
     }));
   });
 
@@ -107,9 +123,42 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+    const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      redirectTo: "https://agenda.fiodeariana.pt/auth?invite=1",
       data: { full_name: data.fullName ?? null },
     });
+    if (error) throw new Error(error.message);
+    if (invited.user) {
+      const { error: approvalError } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          approved: true,
+          approved_at: new Date().toISOString(),
+          approved_by: context.userId,
+        })
+        .eq("id", invited.user.id);
+      if (approvalError) throw new Error(approvalError.message);
+    }
+    return { ok: true };
+  });
+
+export const setTeamMemberApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; approved: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    if (data.userId === context.userId && !data.approved) {
+      throw new Error("Não podes remover a tua própria aprovação.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        approved: data.approved,
+        approved_at: data.approved ? new Date().toISOString() : null,
+        approved_by: data.approved ? context.userId : null,
+      })
+      .eq("id", data.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

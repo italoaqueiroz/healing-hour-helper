@@ -57,7 +57,7 @@ export const sendCheckInPush = createServerFn({ method: "POST" })
     const { data: appointment, error: appointmentError } = await supabaseAdmin
       .from("appointments")
       .select(
-        "id, therapist_id, co_therapist_id, additional_therapist_ids, check_in_at, check_in_by, room_id, rooms(name)",
+        "id, therapist_id, co_therapist_id, additional_therapist_ids, check_in_at, check_in_by",
       )
       .eq("id", data.appointmentId)
       .single();
@@ -90,14 +90,9 @@ export const sendCheckInPush = createServerFn({ method: "POST" })
     const webpush = (await import("web-push")).default;
     webpush.setVapidDetails("https://agenda.fiodeariana.pt", VAPID_PUBLIC_KEY, privateKey);
 
-    const room = Array.isArray(appointment.rooms)
-      ? appointment.rooms[0]?.name
-      : appointment.rooms?.name;
     const payload = JSON.stringify({
       title: "Paciente chegou",
-      body: room
-        ? `O paciente da sua sessão fez check-in para ${room}.`
-        : "O paciente da sua sessão fez check-in.",
+      body: "Seu paciente fez check-in na receção e aguarda atendimento.",
       url: "/agenda",
       tag: `check-in-${appointment.id}`,
     });
