@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedProInfanciaRouteImport } from './routes/_authenticated/pro-infancia'
+import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
 import { Route as AuthenticatedEquipaRouteImport } from './routes/_authenticated/equipa'
 import { Route as AuthenticatedContactosProInfanciaRouteImport } from './routes/_authenticated/contactos-pro-infancia'
 import { Route as AuthenticatedContactosRouteImport } from './routes/_authenticated/contactos'
@@ -51,6 +52,11 @@ const AuthenticatedProInfanciaRoute =
     path: '/pro-infancia',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedHistoricoRoute = AuthenticatedHistoricoRouteImport.update({
+  id: '/historico',
+  path: '/historico',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEquipaRoute = AuthenticatedEquipaRouteImport.update({
   id: '/equipa',
   path: '/equipa',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/contactos': typeof AuthenticatedContactosRoute
   '/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/equipa': typeof AuthenticatedEquipaRoute
+  '/historico': typeof AuthenticatedHistoricoRoute
   '/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/pro-infancia/$childId': typeof AuthenticatedProInfanciaChildIdRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/contactos': typeof AuthenticatedContactosRoute
   '/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/equipa': typeof AuthenticatedEquipaRoute
+  '/historico': typeof AuthenticatedHistoricoRoute
   '/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/pro-infancia/$childId': typeof AuthenticatedProInfanciaChildIdRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/_authenticated/contactos': typeof AuthenticatedContactosRoute
   '/_authenticated/contactos-pro-infancia': typeof AuthenticatedContactosProInfanciaRoute
   '/_authenticated/equipa': typeof AuthenticatedEquipaRoute
+  '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
   '/_authenticated/pro-infancia': typeof AuthenticatedProInfanciaRouteWithChildren
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/pro-infancia/$childId': typeof AuthenticatedProInfanciaChildIdRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/contactos'
     | '/contactos-pro-infancia'
     | '/equipa'
+    | '/historico'
     | '/pro-infancia'
     | '/relatorios'
     | '/pro-infancia/$childId'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/contactos'
     | '/contactos-pro-infancia'
     | '/equipa'
+    | '/historico'
     | '/pro-infancia'
     | '/relatorios'
     | '/pro-infancia/$childId'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contactos'
     | '/_authenticated/contactos-pro-infancia'
     | '/_authenticated/equipa'
+    | '/_authenticated/historico'
     | '/_authenticated/pro-infancia'
     | '/_authenticated/relatorios'
     | '/_authenticated/pro-infancia/$childId'
@@ -206,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/pro-infancia'
       fullPath: '/pro-infancia'
       preLoaderRoute: typeof AuthenticatedProInfanciaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/historico': {
+      id: '/_authenticated/historico'
+      path: '/historico'
+      fullPath: '/historico'
+      preLoaderRoute: typeof AuthenticatedHistoricoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/equipa': {
@@ -265,6 +284,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContactosRoute: typeof AuthenticatedContactosRoute
   AuthenticatedContactosProInfanciaRoute: typeof AuthenticatedContactosProInfanciaRoute
   AuthenticatedEquipaRoute: typeof AuthenticatedEquipaRoute
+  AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
   AuthenticatedProInfanciaRoute: typeof AuthenticatedProInfanciaRouteWithChildren
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
 }
@@ -275,6 +295,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContactosProInfanciaRoute:
     AuthenticatedContactosProInfanciaRoute,
   AuthenticatedEquipaRoute: AuthenticatedEquipaRoute,
+  AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
   AuthenticatedProInfanciaRoute: AuthenticatedProInfanciaRouteWithChildren,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
 }
