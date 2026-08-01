@@ -25,12 +25,17 @@ import {
   User as UserIcon,
   UserCog,
   Baby,
+  History,
+  ArrowRight,
 } from "lucide-react";
 import { IosInstallBanner } from "./ios-install-banner";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 type NavItem = {
-  to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa";
+  to: "/agenda" | "/contactos" | "/pro-infancia" | "/relatorios" | "/equipa" | "/historico";
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   requiresAdmin?: boolean;
@@ -42,7 +47,43 @@ const NAV: NavItem[] = [
   { to: "/contactos", label: "Contactos", icon: Users },
   { to: "/pro-infancia", label: "ProInfância", icon: Baby, requiresPI: true },
   { to: "/relatorios", label: "Relatórios", icon: FileText },
+  { to: "/historico", label: "Histórico", icon: History, requiresAdmin: true },
   { to: "/equipa", label: "Equipa", icon: UserCog, requiresAdmin: true },
+];
+
+type OnboardingProfile = {
+  id: string;
+  default_session_minutes: number;
+  session_duration_selected_at: string | null;
+  tutorial_step: number;
+  tutorial_completed_at: string | null;
+};
+
+const THERAPIST_TUTORIAL = [
+  {
+    title: "Agenda e salas",
+    text: "Na Agenda, altere o dia pelas setas ou pelo calendário. Use a vista em cartões ou a grade por horário e arraste sessões em intervalos de 15 minutos.",
+  },
+  {
+    title: "Criar e editar atendimentos",
+    text: "Em Novo, crie uma sessão presencial, consulta online, reunião ou outro evento. Escolha paciente, sala e todos os terapeutas envolvidos. Abra o cartão para corrigir os dados.",
+  },
+  {
+    title: "Check-in, presença e faltas",
+    text: "Check-in confirma que o paciente chegou e registra presença. P, FT, FI e FJ registram o resultado da sessão. Até uma hora após o fim é possível corrigir; depois o cartão fica congelado.",
+  },
+  {
+    title: "Indisponibilidade",
+    text: "Use Indisponível para bloqueios de horário, férias e outras ausências. O sistema avisa quando o período entra em conflito com atendimentos marcados.",
+  },
+  {
+    title: "Contactos e relatórios",
+    text: "Contactos reúne os dados dos pacientes. Relatórios mostra apenas a atividade correspondente ao terapeuta, incluindo sessões feitas em conjunto.",
+  },
+  {
+    title: "Notificações e segurança",
+    text: "Ative o sino para receber avisos de check-in no celular. Não compartilhe a sua conta e encerre a sessão em dispositivos de terceiros. Alterações na agenda ficam registradas para a administração.",
+  },
 ];
 
 type AppNotification = {
@@ -89,6 +130,8 @@ export function AppShell({
   const [userName, setUserName] = useState("Terapeuta");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPI, setIsPI] = useState(false);
+  const [isTherapist, setIsTherapist] = useState(false);
+  const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [browserPermission, setBrowserPermission] = useState<
     NotificationPermission | "unsupported"
@@ -97,6 +140,21 @@ export function AppShell({
       ? Notification.permission
       : "unsupported",
   );
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    let reloading = false;
+    const reloadForNewVersion = () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", reloadForNewVersion);
+    void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((registration) => {
+      void registration.update();
+    });
+    return () => navigator.serviceWorker.removeEventListener("controllerchange", reloadForNewVersion);
+  }, []);
 
   const subscribeDevice = useCallback(async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -142,6 +200,14 @@ export function AppShell({
       const admin = list.includes("admin");
       setIsAdmin(admin);
       setIsPI(admin || list.includes("pro_infancia"));
+      setIsTherapist(list.includes("therapist"));
+
+      const { data: onboarding } = await supabase
+        .from("profiles")
+        .select("id, default_session_minutes, session_duration_selected_at, tutorial_step, tutorial_completed_at")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      setOnboardingProfile(onboarding as OnboardingProfile | null);
 
       const { data: initialNotifications } = await supabase
         .from("notifications")
@@ -398,6 +464,97 @@ export function AppShell({
       </nav>
 
       <IosInstallBanner />
+      {isTherapist && onboardingProfile && (
+        <RequiredOnboarding
+          profile={onboardingProfile}
+          onProfileChange={setOnboardingProfile}
+        />
+      )}
     </div>
+  );
+}
+
+function RequiredOnboarding({
+  profile,
+  onProfileChange,
+}: {
+  profile: OnboardingProfile;
+  onProfileChange: (profile: OnboardingProfile) => void;
+}) {
+  const [minutes, setMinutes] = useState(profile.default_session_minutes || 60);
+  const [saving, setSaving] = useState(false);
+  const choosingDuration = !profile.session_duration_selected_at;
+  const tutorialOpen = !profile.tutorial_completed_at;
+  const open = choosingDuration || tutorialOpen;
+  const step = Math.min(profile.tutorial_step, THERAPIST_TUTORIAL.length - 1);
+  const item = THERAPIST_TUTORIAL[step];
+
+  async function saveDuration() {
+    setSaving(true);
+    const { data, error } = await supabase.rpc("complete_duration_setup", { _minutes: minutes });
+    setSaving(false);
+    if (error) return toast.error("Não foi possível guardar a duração.");
+    onProfileChange(data as OnboardingProfile);
+  }
+
+  async function continueTutorial() {
+    setSaving(true);
+    const { data, error } = await supabase.rpc("advance_tutorial");
+    setSaving(false);
+    if (error) return toast.error("Não foi possível guardar o progresso.");
+    onProfileChange(data as OnboardingProfile);
+  }
+
+  return (
+    <Dialog open={open}>
+      <DialogContent
+        className="max-w-md"
+        hideClose
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        {choosingDuration ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Duração habitual das suas sessões</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Esta escolha preenche automaticamente o horário final ao criar um atendimento.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[45, 60, 75, 90].map((value) => (
+                <Button key={value} variant={minutes === value ? "default" : "outline"} onClick={() => setMinutes(value)}>
+                  {value} min
+                </Button>
+              ))}
+            </div>
+            <div>
+              <Label htmlFor="required-duration">Outra duração</Label>
+              <Input id="required-duration" type="number" min={15} max={240} step={5} value={minutes}
+                onChange={(event) => setMinutes(Math.max(15, Math.min(240, Number(event.target.value) || 60)))} />
+            </div>
+            <Button onClick={saveDuration} disabled={saving} className="w-full">
+              Guardar e iniciar tutorial <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <div className="text-xs font-medium text-muted-foreground">PASSO {step + 1} DE {THERAPIST_TUTORIAL.length}</div>
+              <DialogTitle>{item.title}</DialogTitle>
+            </DialogHeader>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-primary transition-all" style={{ width: `${((step + 1) / THERAPIST_TUTORIAL.length) * 100}%` }} />
+            </div>
+            <p className="min-h-24 text-sm leading-relaxed text-muted-foreground">{item.text}</p>
+            <Button onClick={continueTutorial} disabled={saving} className="w-full">
+              {step === THERAPIST_TUTORIAL.length - 1 ? "Concluir tutorial" : "Entendi, continuar"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
