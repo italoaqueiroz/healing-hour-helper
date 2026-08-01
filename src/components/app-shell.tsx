@@ -249,11 +249,7 @@ export function AppShell({
         <div className="flex items-center gap-3 px-3 sm:px-5 py-2.5">
           {/* Fio logo → home */}
           <Link to="/" className="shrink-0" aria-label="Página inicial">
-            <img
-              src="/pwa-icon-512.png"
-              alt="O Fio de Ariana"
-              className="h-9 w-9 rounded-full ring-1 ring-border object-cover"
-            />
+            <img src="/logo-fio.png" alt="O Fio de Ariana" className="h-9 w-9 object-contain" />
           </Link>
 
           <div className="min-w-0 flex-1">
