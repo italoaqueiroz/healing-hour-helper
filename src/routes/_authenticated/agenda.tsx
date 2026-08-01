@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { format, addDays, startOfDay, isSameDay, parseISO, addWeeks, addMonths } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -16,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { sendCheckInPush } from "@/lib/push.functions";
 import {
   ChevronLeft, ChevronRight, Plus, RotateCw, Trash2,
   Crown, LayoutGrid, Rows3, Star, Ban, CalendarIcon,
@@ -83,6 +85,7 @@ type Unavail = { id: string; therapist_id: string; starts_at: string; ends_at: s
 
 function AgendaPage() {
   const navigate = useNavigate();
+  const sendPush = useServerFn(sendCheckInPush);
   void navigate;
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -215,6 +218,11 @@ function AgendaPage() {
     toast.success(checking
       ? `${eventLabel(a)} chegou. Terapeuta(s) notificado(s).`
       : "Check-in removido");
+    if (checking) {
+      void sendPush({ data: { appointmentId: a.id } }).catch(() => {
+        toast.warning("Check-in registado, mas o aviso push não pôde ser enviado.");
+      });
+    }
   }
 
   async function markStatus(a: Appointment, status: Status) {
