@@ -106,6 +106,51 @@ export type Database = {
           },
         ];
       };
+      appointment_audit_logs: {
+        Row: {
+          action: string;
+          actor_id: string | null;
+          appointment_id: string | null;
+          changed_fields: string[];
+          created_at: string;
+          event_type: string | null;
+          id: string;
+          new_data: Json | null;
+          old_data: Json | null;
+          patient_name: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_id?: string | null;
+          appointment_id?: string | null;
+          changed_fields?: string[];
+          created_at?: string;
+          event_type?: string | null;
+          id?: string;
+          new_data?: Json | null;
+          old_data?: Json | null;
+          patient_name?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string | null;
+          appointment_id?: string | null;
+          changed_fields?: string[];
+          created_at?: string;
+          event_type?: string | null;
+          id?: string;
+          new_data?: Json | null;
+          old_data?: Json | null;
+          patient_name?: string | null;
+        };
+        Relationships: [{
+          foreignKeyName: "appointment_audit_logs_actor_id_fkey";
+          columns: ["actor_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        }];
+      };
       notifications: {
         Row: {
           appointment_id: string | null;
@@ -344,6 +389,9 @@ export type Database = {
           email: string | null;
           full_name: string | null;
           id: string;
+          session_duration_selected_at: string | null;
+          tutorial_completed_at: string | null;
+          tutorial_step: number;
         };
         Insert: {
           approved?: boolean;
@@ -355,6 +403,9 @@ export type Database = {
           email?: string | null;
           full_name?: string | null;
           id: string;
+          session_duration_selected_at?: string | null;
+          tutorial_completed_at?: string | null;
+          tutorial_step?: number;
         };
         Update: {
           approved?: boolean;
@@ -366,6 +417,9 @@ export type Database = {
           email?: string | null;
           full_name?: string | null;
           id?: string;
+          session_duration_selected_at?: string | null;
+          tutorial_completed_at?: string | null;
+          tutorial_step?: number;
         };
         Relationships: [];
       };
@@ -479,8 +533,13 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      advance_tutorial: { Args: never; Returns: Database["public"]["Tables"]["profiles"]["Row"] };
       auto_mark_present: { Args: never; Returns: undefined };
       claim_admin: { Args: never; Returns: boolean };
+      complete_duration_setup: {
+        Args: { _minutes: number };
+        Returns: Database["public"]["Tables"]["profiles"]["Row"];
+      };
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"];
