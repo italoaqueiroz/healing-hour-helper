@@ -44,6 +44,10 @@ const EVENT_LABEL: Record<string, string> = {
   other: "Evento",
 };
 
+function isCareEvent(eventType: string) {
+  return eventType === "session" || eventType === "online";
+}
+
 async function sendEmail(to: string, subject: string, html: string) {
   if (!RESEND_KEY) {
     console.warn("[notify-appointment] sem RESEND_API_KEY — pulando envio");
@@ -81,7 +85,7 @@ function buildBody(opts: {
   });
   const typeLabel = EVENT_LABEL[appt.event_type] || "Evento";
   const who =
-    appt.event_type === "session"
+    isCareEvent(appt.event_type)
       ? `<strong>Paciente:</strong> ${appt.patient_name ?? "—"}`
       : `<strong>Título:</strong> ${appt.title ?? typeLabel}`;
   const coLine = coName
@@ -185,8 +189,8 @@ Deno.serve(async (req) => {
         );
       }
       const subj =
-        first.event_type === "session"
-          ? `Nova sessão: ${first.patient_name ?? "paciente"} — ${fmtPT(new Date(first.starts_at))}`
+        isCareEvent(first.event_type)
+          ? `${first.event_type === "online" ? "Nova consulta online" : "Nova sessão"}: ${first.patient_name ?? "paciente"} — ${fmtPT(new Date(first.starts_at))}`
           : `Novo evento: ${first.title ?? EVENT_LABEL[first.event_type]}`;
       const res = await sendEmail(p.email, subj, html);
       if ((res as any).ok) sent++;
