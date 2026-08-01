@@ -19,6 +19,21 @@ type AuthMode = "signin" | "signup" | "forgot" | "update-password";
 type PendingAction = "email" | "google" | "reset" | null;
 type Notice = { kind: "success" | "error"; message: string } | null;
 
+async function withAuthTimeout<T>(request: Promise<T>, timeoutMs = 15000): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("O serviço de autenticação demorou demasiado. Tente novamente."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function authErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
@@ -86,14 +101,16 @@ function AuthPage() {
     setPending("email");
     try {
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth`,
-            data: { full_name: fullName.trim() },
-          },
-        });
+        const { data, error } = await withAuthTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth`,
+              data: { full_name: fullName.trim() },
+            },
+          }),
+        );
         if (error) throw error;
 
         if (data.session) {
@@ -108,7 +125,9 @@ function AuthPage() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+      );
       if (error) throw error;
       if (data.session) navigate({ to: "/agenda", replace: true });
     } catch (error) {
@@ -122,13 +141,19 @@ function AuthPage() {
     setNotice(null);
     setPending("google");
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/agenda` },
-    });
-
-    if (error) {
+    try {
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${window.location.origin}/agenda` },
+        }),
+      );
+      if (error) throw error;
+      if (!data.url) throw new Error("Não foi possível iniciar o acesso com Google.");
+      window.location.assign(data.url);
+    } catch (error) {
       setNotice({ kind: "error", message: authErrorMessage(error) });
+    } finally {
       setPending(null);
     }
   }
@@ -138,20 +163,23 @@ function AuthPage() {
     setNotice(null);
     setPending("reset");
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?recovery=1`,
-    });
+    try {
+      const { error } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth?recovery=1`,
+        }),
+      );
+      if (error) throw error;
 
-    setPending(null);
-    if (error) {
+      setNotice({
+        kind: "success",
+        message: "Enviámos um link para redefinir a senha. Verifique também a pasta de spam.",
+      });
+    } catch (error) {
       setNotice({ kind: "error", message: authErrorMessage(error) });
-      return;
+    } finally {
+      setPending(null);
     }
-
-    setNotice({
-      kind: "success",
-      message: "Enviámos um link para redefinir a senha. Verifique também a pasta de spam.",
-    });
   }
 
   async function handlePasswordUpdate(event: React.FormEvent) {
@@ -164,16 +192,17 @@ function AuthPage() {
     }
 
     setPending("reset");
-    const { error } = await supabase.auth.updateUser({ password });
-    setPending(null);
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.updateUser({ password }));
+      if (error) throw error;
 
-    if (error) {
+      window.history.replaceState(null, "", "/auth");
+      navigate({ to: "/agenda", replace: true });
+    } catch (error) {
       setNotice({ kind: "error", message: authErrorMessage(error) });
-      return;
+    } finally {
+      setPending(null);
     }
-
-    window.history.replaceState(null, "", "/auth");
-    navigate({ to: "/agenda", replace: true });
   }
 
   const isBusy = pending !== null;
