@@ -64,12 +64,21 @@ export const deleteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { userId: string }) => input)
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
-    if (data.userId === context.userId) throw new Error("Não podes eliminar-te a ti próprio.");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    try {
+      await assertAdmin(context.supabase, context.userId);
+      if (data.userId === context.userId) {
+        return { ok: false, error: "Não podes eliminar-te a ti próprio." };
+      }
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, error: null };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Não foi possível remover o acesso.",
+      };
+    }
   });
 
 export const setAdminRole = createServerFn({ method: "POST" })
@@ -121,25 +130,32 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { email: string; fullName?: string }) => input)
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
-      redirectTo: "https://agenda.fiodeariana.pt/auth?invite=1",
-      data: { full_name: data.fullName ?? null },
-    });
-    if (error) throw new Error(error.message);
-    if (invited.user) {
-      const { error: approvalError } = await supabaseAdmin
-        .from("profiles")
-        .update({
-          approved: true,
-          approved_at: new Date().toISOString(),
-          approved_by: context.userId,
-        })
-        .eq("id", invited.user.id);
-      if (approvalError) throw new Error(approvalError.message);
+    try {
+      await assertAdmin(context.supabase, context.userId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+        redirectTo: "https://agenda.fiodeariana.pt/auth?invite=1",
+        data: { full_name: data.fullName ?? null },
+      });
+      if (error) return { ok: false, error: error.message };
+      if (invited.user) {
+        const { error: approvalError } = await supabaseAdmin
+          .from("profiles")
+          .update({
+            approved: true,
+            approved_at: new Date().toISOString(),
+            approved_by: context.userId,
+          })
+          .eq("id", invited.user.id);
+        if (approvalError) return { ok: false, error: approvalError.message };
+      }
+      return { ok: true, error: null };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Não foi possível enviar o convite.",
+      };
     }
-    return { ok: true };
   });
 
 export const setTeamMemberApproval = createServerFn({ method: "POST" })
