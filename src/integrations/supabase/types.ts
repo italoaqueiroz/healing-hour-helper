@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_audit_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          appointment_id: string | null
+          changed_fields: string[]
+          created_at: string
+          event_type: string | null
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          patient_name: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          appointment_id?: string | null
+          changed_fields?: string[]
+          created_at?: string
+          event_type?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          patient_name?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          appointment_id?: string | null
+          changed_fields?: string[]
+          created_at?: string
+          event_type?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          patient_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           additional_therapist_ids: string[]
@@ -108,6 +155,44 @@ export type Database = {
             columns: ["therapist_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          message: string
+          read_at: string | null
+          recipient_id: string
+          title: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          read_at?: string | null
+          recipient_id: string
+          title: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          read_at?: string | null
+          recipient_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
         ]
@@ -293,28 +378,49 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
           color: string | null
           created_at: string
           default_session_minutes: number
           email: string | null
           full_name: string | null
           id: string
+          password_set_at: string | null
+          session_duration_selected_at: string | null
+          tutorial_completed_at: string | null
+          tutorial_step: number
         }
         Insert: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           color?: string | null
           created_at?: string
           default_session_minutes?: number
           email?: string | null
           full_name?: string | null
           id: string
+          password_set_at?: string | null
+          session_duration_selected_at?: string | null
+          tutorial_completed_at?: string | null
+          tutorial_step?: number
         }
         Update: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           color?: string | null
           created_at?: string
           default_session_minutes?: number
           email?: string | null
           full_name?: string | null
           id?: string
+          password_set_at?: string | null
+          session_duration_selected_at?: string | null
+          tutorial_completed_at?: string | null
+          tutorial_step?: number
         }
         Relationships: []
       }
@@ -375,6 +481,7 @@ export type Database = {
           created_by: string | null
           ends_at: string
           id: string
+          kind: string
           reason: string | null
           starts_at: string
           therapist_id: string
@@ -384,6 +491,7 @@ export type Database = {
           created_by?: string | null
           ends_at: string
           id?: string
+          kind?: string
           reason?: string | null
           starts_at: string
           therapist_id: string
@@ -393,6 +501,7 @@ export type Database = {
           created_by?: string | null
           ends_at?: string
           id?: string
+          kind?: string
           reason?: string | null
           starts_at?: string
           therapist_id?: string
@@ -425,8 +534,80 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advance_tutorial: {
+        Args: never
+        Returns: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          color: string | null
+          created_at: string
+          default_session_minutes: number
+          email: string | null
+          full_name: string | null
+          id: string
+          password_set_at: string | null
+          session_duration_selected_at: string | null
+          tutorial_completed_at: string | null
+          tutorial_step: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       auto_mark_present: { Args: never; Returns: undefined }
       claim_admin: { Args: never; Returns: boolean }
+      complete_duration_setup: {
+        Args: { _minutes: number }
+        Returns: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          color: string | null
+          created_at: string
+          default_session_minutes: number
+          email: string | null
+          full_name: string | null
+          id: string
+          password_set_at: string | null
+          session_duration_selected_at: string | null
+          tutorial_completed_at: string | null
+          tutorial_step: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_password_setup: {
+        Args: never
+        Returns: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          color: string | null
+          created_at: string
+          default_session_minutes: number
+          email: string | null
+          full_name: string | null
+          id: string
+          password_set_at: string | null
+          session_duration_selected_at: string | null
+          tutorial_completed_at: string | null
+          tutorial_step: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
