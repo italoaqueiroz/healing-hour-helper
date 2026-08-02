@@ -62,7 +62,7 @@ export const listTeam = createServerFn({ method: "GET" })
 
 export const deleteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string }) => input)
+  .validator((input: { userId: string }) => input)
   .handler(async ({ data, context }) => {
     try {
       await assertAdmin(context.supabase, context.userId);
@@ -83,7 +83,7 @@ export const deleteTeamMember = createServerFn({ method: "POST" })
 
 export const setAdminRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; makeAdmin: boolean }) => input)
+  .validator((input: { userId: string; makeAdmin: boolean }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -106,7 +106,7 @@ export const setAdminRole = createServerFn({ method: "POST" })
 
 export const setPiRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; enable: boolean }) => input)
+  .validator((input: { userId: string; enable: boolean }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -128,7 +128,7 @@ export const setPiRole = createServerFn({ method: "POST" })
 
 export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; fullName?: string }) => input)
+  .validator((input: { email: string; fullName?: string }) => input)
   .handler(async ({ data, context }) => {
     try {
       await assertAdmin(context.supabase, context.userId);
@@ -164,7 +164,7 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
 
 export const setTeamMemberApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; approved: boolean }) => input)
+  .validator((input: { userId: string; approved: boolean }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     if (data.userId === context.userId && !data.approved) {
@@ -194,7 +194,7 @@ export const setTeamMemberApproval = createServerFn({ method: "POST" })
 
 export const updateTeamMemberName = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; fullName: string }) => input)
+  .validator((input: { userId: string; fullName: string }) => input)
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const name = data.fullName.trim();
