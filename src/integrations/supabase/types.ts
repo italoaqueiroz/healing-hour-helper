@@ -389,6 +389,7 @@ export type Database = {
           email: string | null;
           full_name: string | null;
           id: string;
+          password_set_at: string | null;
           session_duration_selected_at: string | null;
           tutorial_completed_at: string | null;
           tutorial_step: number;
@@ -403,6 +404,7 @@ export type Database = {
           email?: string | null;
           full_name?: string | null;
           id: string;
+          password_set_at?: string | null;
           session_duration_selected_at?: string | null;
           tutorial_completed_at?: string | null;
           tutorial_step?: number;
@@ -417,6 +419,7 @@ export type Database = {
           email?: string | null;
           full_name?: string | null;
           id?: string;
+          password_set_at?: string | null;
           session_duration_selected_at?: string | null;
           tutorial_completed_at?: string | null;
           tutorial_step?: number;
@@ -536,6 +539,7 @@ export type Database = {
       advance_tutorial: { Args: never; Returns: Database["public"]["Tables"]["profiles"]["Row"] };
       auto_mark_present: { Args: never; Returns: undefined };
       claim_admin: { Args: never; Returns: boolean };
+      complete_password_setup: { Args: never; Returns: Database["public"]["Tables"]["profiles"]["Row"] };
       complete_duration_setup: {
         Args: { _minutes: number };
         Returns: Database["public"]["Tables"]["profiles"]["Row"];
