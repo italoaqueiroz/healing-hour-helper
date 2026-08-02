@@ -148,6 +148,10 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
           })
           .eq("id", invited.user.id);
         if (approvalError) return { ok: false, error: approvalError.message };
+        const { error: roleError } = await supabaseAdmin
+          .from("user_roles")
+          .upsert({ user_id: invited.user.id, role: "therapist" }, { onConflict: "user_id,role" });
+        if (roleError) return { ok: false, error: roleError.message };
       }
       return { ok: true, error: null };
     } catch (error) {
@@ -176,6 +180,15 @@ export const setTeamMemberApproval = createServerFn({ method: "POST" })
       })
       .eq("id", data.userId);
     if (error) throw new Error(error.message);
+    if (data.approved) {
+      const { data: roles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", data.userId);
+      if (!roles?.length) {
+        const { error: roleError } = await supabaseAdmin
+          .from("user_roles")
+          .insert({ user_id: data.userId, role: "therapist" });
+        if (roleError) throw new Error(roleError.message);
+      }
+    }
     return { ok: true };
   });
 
