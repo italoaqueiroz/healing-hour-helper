@@ -1,12 +1,12 @@
 // Fonte de verdade pública do projeto backend atual.
 // Usada para evitar que variáveis de ambiente do host (ex.: Vercel) apontem
 // para um projeto Supabase antigo/inválido. Apenas valores públicos (anon).
-export const PROJECT_REF = 'rwiogtidrjqszjbboarc';
+export const PROJECT_REF = 'mowptnlvgmyqcfcgtwie';
 
 export const PROJECT_SUPABASE_URL = `https://${PROJECT_REF}.supabase.co`;
 
 export const PROJECT_SUPABASE_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3aW9ndGlkcmpxc3pqYmJvYXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMjI1MzYsImV4cCI6MjA5OTY5ODUzNn0.CxAHQdG6QVNbSaXLwez56VlvkmKBLz3RZ_76UmubOSY';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vd3B0bmx2Z215cWNmY2d0d2llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODk2ODQsImV4cCI6MjA5ODA2NTY4NH0.MVXUJnpNalpGcTOrjqdH4iVY4yEBbus4gcLaT7tSonE';
 
 /** Aceita o URL do ambiente apenas se corresponder ao projeto atual. */
 export function resolveSupabaseUrl(candidate?: string | null): string {
