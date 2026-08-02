@@ -54,6 +54,7 @@ const NAV: NavItem[] = [
 type OnboardingProfile = {
   id: string;
   default_session_minutes: number;
+  password_set_at: string | null;
   session_duration_selected_at: string | null;
   tutorial_step: number;
   tutorial_completed_at: string | null;
@@ -204,7 +205,7 @@ export function AppShell({
 
       const { data: onboarding } = await supabase
         .from("profiles")
-        .select("id, default_session_minutes, session_duration_selected_at, tutorial_step, tutorial_completed_at")
+        .select("id, default_session_minutes, password_set_at, session_duration_selected_at, tutorial_step, tutorial_completed_at")
         .eq("id", data.user.id)
         .maybeSingle();
       setOnboardingProfile(onboarding as OnboardingProfile | null);
@@ -482,12 +483,32 @@ function RequiredOnboarding({
   onProfileChange: (profile: OnboardingProfile) => void;
 }) {
   const [minutes, setMinutes] = useState(profile.default_session_minutes || 60);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const choosingPassword = !profile.password_set_at;
   const choosingDuration = !profile.session_duration_selected_at;
   const tutorialOpen = !profile.tutorial_completed_at;
-  const open = choosingDuration || tutorialOpen;
+  const open = choosingPassword || choosingDuration || tutorialOpen;
   const step = Math.min(profile.tutorial_step, THERAPIST_TUTORIAL.length - 1);
   const item = THERAPIST_TUTORIAL[step];
+
+  async function savePassword() {
+    if (newPassword.length < 8) return toast.error("A senha deve ter pelo menos 8 caracteres.");
+    if (newPassword !== confirmPassword) return toast.error("As senhas não coincidem.");
+    setSaving(true);
+    const { error: passwordError } = await supabase.auth.updateUser({ password: newPassword });
+    if (passwordError) {
+      setSaving(false);
+      return toast.error("Não foi possível guardar a senha.");
+    }
+    const { data, error } = await supabase.rpc("complete_password_setup");
+    setSaving(false);
+    if (error) return toast.error("A senha foi criada, mas não foi possível guardar o progresso.");
+    setNewPassword("");
+    setConfirmPassword("");
+    onProfileChange(data as OnboardingProfile);
+  }
 
   async function saveDuration() {
     setSaving(true);
@@ -514,7 +535,29 @@ function RequiredOnboarding({
         onPointerDownOutside={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
       >
-        {choosingDuration ? (
+        {choosingPassword ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Crie a sua senha</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Esta senha será usada para entrar com o seu e-mail nos próximos acessos.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="required-password">Nova senha</Label>
+              <Input id="required-password" type="password" autoComplete="new-password" minLength={8}
+                value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="required-password-confirm">Confirmar senha</Label>
+              <Input id="required-password-confirm" type="password" autoComplete="new-password" minLength={8}
+                value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+            </div>
+            <Button onClick={savePassword} disabled={saving || newPassword.length < 8} className="w-full">
+              Criar senha e continuar <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </>
+        ) : choosingDuration ? (
           <>
             <DialogHeader>
               <DialogTitle>Duração habitual das suas sessões</DialogTitle>
